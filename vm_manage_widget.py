@@ -499,40 +499,41 @@ class VMManageWidget(QtWidgets.QWidget):
             return
 
         result = self._client.get_status()
-        if not result:
-            return
-        status = result.result
-        rootcell: dict = status.get('rootcell')
-        guestcells = status.get('guestcells')
-        timestamp = status.get('timestamp', time.time())
+        if result:  # 只处理成功的结果
+            status = result.result
+            rootcell: dict = status.get('rootcell')
+            guestcells = status.get('guestcells')
+            timestamp = status.get('timestamp', time.time())
 
-        if guestcells:
-            for i in range(self._ui.listwidget_cells.count()):
-                item = self._ui.listwidget_cells.item(i)
-                item_widget: CellStateItemWidget = self._ui.listwidget_cells.itemWidget(item)
-                cell = guestcells.get(item_widget.name())
-                if cell is not None:
-                    item_widget.set_status(cell['status'])
-                else:
-                    item_widget.set_status("未创建")
+            if guestcells:
+                for i in range(self._ui.listwidget_cells.count()):
+                    item = self._ui.listwidget_cells.item(i)
+                    item_widget: CellStateItemWidget = self._ui.listwidget_cells.itemWidget(item)
+                    cell = guestcells.get(item_widget.name())
+                    if cell is not None:
+                        item_widget.set_status(cell['status'])
+                    else:
+                        item_widget.set_status("未创建")
 
-        if rootcell:
-            meminfo = rootcell.get('meminfo')
-            cputimes = rootcell.get('cputimes')
-            if meminfo is None:
-                return
-            if cputimes is None:
-                return
+            if rootcell:
+                meminfo = rootcell.get('meminfo')
+                cputimes = rootcell.get('cputimes')
+                if meminfo is None:
+                    return
+                if cputimes is None:
+                    return
 
-            self._root_cpuload.set_cpucount(rootcell.get('cpucount', "?"))
+                self._root_cpuload.set_cpucount(rootcell.get('cpucount', "?"))
 
             if self._last_status is not None:
                 last_cputimes = self._last_status['rootcell']['cputimes']
                 _user = last_cputimes['user'] - cputimes['user']
                 _sys = last_cputimes['system'] - cputimes['system']
                 _idle = last_cputimes['idle'] - cputimes['idle']
-                cpuload = (_user+_sys)/(_user+_sys+_idle)
-                self._root_cpuload.add_data(timestamp, cpuload)
+                # 确保分母不为零
+                if _user + _sys + _idle != 0:
+                    cpuload = (_user + _sys) / (_user + _sys + _idle)
+                    self._root_cpuload.add_data(timestamp, cpuload)
 
             self._root_meminfo.add_data(timestamp, meminfo['total'], meminfo['available'])
 
@@ -568,7 +569,7 @@ class VMManageWidget(QtWidgets.QWidget):
             return
 
         name = self._current_cell.name()
-        self.logger.info("destroy cell {name}")
+        self.logger.info(f"destroy cell {name}")
         self._client.destroy_cell(name)
 
     def _update_vm_list(self, rsc: Resource):

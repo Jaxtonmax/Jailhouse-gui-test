@@ -382,118 +382,123 @@ class RootCellGenerator(object):
 
     @classmethod
     def gen_config_bin(cls, rsc: Resource) -> bytes:
-        cpu = rsc.platform().cpu()
-        rootcell = rsc.jailhouse().rootcell()
-        kwargs = cls.gen_kwargs(rsc)
-        Rev = Revision14
+        logger.debug("开始生成根单元格二进制配置")
+        try:
+            cpu = rsc.platform().cpu()
+            rootcell = rsc.jailhouse().rootcell()
+            kwargs = cls.gen_kwargs(rsc)
+            Rev = Revision14
 
-        # len(devices)+len(board_mems)+len(regions)+ivshmem['count']+2}
-        regions: List[JailhouseMemory] = list()
-        ivsm: ResourceComm = rsc.jailhouse().ivshmem()
-        ivsm_state_size = ivsm.ivshmem_state_size()
-        ivsm_rw_size = ivsm.ivshmem_rw_size()
-        ivsm_out_size = ivsm.ivshmem_out_size()
-        ivsm_state = ivsm.ivshmem_phys()
-        ivsm_rw = ivsm_state + ivsm_state_size
-        ivsm_out = ivsm_state + ivsm_state_size + ivsm_rw_size
-        peer_count = rsc.jailhouse().guestcells().cell_count()+1
+            # len(devices)+len(board_mems)+len(regions)+ivshmem['count']+2}
+            regions: List[JailhouseMemory] = list()
+            ivsm: ResourceComm = rsc.jailhouse().ivshmem()
+            ivsm_state_size = ivsm.ivshmem_state_size()
+            ivsm_rw_size = ivsm.ivshmem_rw_size()
+            ivsm_out_size = ivsm.ivshmem_out_size()
+            ivsm_state = ivsm.ivshmem_phys()
+            ivsm_rw = ivsm_state + ivsm_state_size
+            ivsm_out = ivsm_state + ivsm_state_size + ivsm_rw_size
+            peer_count = rsc.jailhouse().guestcells().cell_count()+1
 
-        regions.append(JailhouseMemory(ivsm_state, ivsm_state, ivsm_state_size, JailhouseMemory.MEM_READ))
-        regions.append(JailhouseMemory(ivsm_rw, ivsm_rw, ivsm_rw_size, JailhouseMemory.MEM_READ|JailhouseMemory.MEM_WRITE))
-        regions.append(JailhouseMemory(ivsm_out, ivsm_out, ivsm_out_size, JailhouseMemory.MEM_READ|JailhouseMemory.MEM_WRITE))
-        for i in range(1,peer_count):
-            addr = ivsm_out + i*ivsm_out_size
-            regions.append(JailhouseMemory(addr, addr, ivsm_out_size, JailhouseMemory.MEM_READ))
+            regions.append(JailhouseMemory(ivsm_state, ivsm_state, ivsm_state_size, JailhouseMemory.MEM_READ))
+            regions.append(JailhouseMemory(ivsm_rw, ivsm_rw, ivsm_rw_size, JailhouseMemory.MEM_READ|JailhouseMemory.MEM_WRITE))
+            regions.append(JailhouseMemory(ivsm_out, ivsm_out, ivsm_out_size, JailhouseMemory.MEM_READ|JailhouseMemory.MEM_WRITE))
+            for i in range(1,peer_count):
+                addr = ivsm_out + i*ivsm_out_size
+                regions.append(JailhouseMemory(addr, addr, ivsm_out_size, JailhouseMemory.MEM_READ))
 
-        for mem in cls.get_board_mem(rsc):
-            flag = JailhouseMemory.MEM_READ | JailhouseMemory.MEM_WRITE | JailhouseMemory.MEM_EXECUTE
-            print(mem)
-            regions.append(JailhouseMemory(mem['addr'], mem['addr'], mem['size'], flag))
+            for mem in cls.get_board_mem(rsc):
+                flag = JailhouseMemory.MEM_READ | JailhouseMemory.MEM_WRITE | JailhouseMemory.MEM_EXECUTE
+                print(mem)
+                regions.append(JailhouseMemory(mem['addr'], mem['addr'], mem['size'], flag))
 
-        for dev in cls.get_devices(rsc):
-            flag = JailhouseMemory.MEM_READ | JailhouseMemory.MEM_WRITE | JailhouseMemory.MEM_IO
-            regions.append(JailhouseMemory(dev['addr'], dev['addr'], dev['size'], flag))
+            for dev in cls.get_devices(rsc):
+                flag = JailhouseMemory.MEM_READ | JailhouseMemory.MEM_WRITE | JailhouseMemory.MEM_IO
+                regions.append(JailhouseMemory(dev['addr'], dev['addr'], dev['size'], flag))
 
-        for mem in cpu.regions():
-            if mem.type() is mem.Type.DRAM:
-                continue
-            flag = JailhouseMemory.MEM_READ | JailhouseMemory.MEM_WRITE | JailhouseMemory.MEM_IO
-            regions.append(JailhouseMemory(mem.addr(), mem.addr(), mem.size(), flag))
+            for mem in cpu.regions():
+                if mem.type() is mem.Type.DRAM:
+                    continue
+                flag = JailhouseMemory.MEM_READ | JailhouseMemory.MEM_WRITE | JailhouseMemory.MEM_IO
+                regions.append(JailhouseMemory(mem.addr(), mem.addr(), mem.size(), flag))
 
-        class RootCell(ctypes.Structure):
-            _pack_ = 1
-            _fields_ = [
-                ("header", Rev.system),
-                ('cpus', ctypes.c_uint64*1),
-                ('mem_regions', Rev.memory*len(regions)),
-                ('irqchips', Rev.irqchip),
-                ('pci_devices', Rev.pci_device)
-            ]
+            class RootCell(ctypes.Structure):
+                _pack_ = 1
+                _fields_ = [
+                    ("header", Rev.system),
+                    ('cpus', ctypes.c_uint64*1),
+                    ('mem_regions', Rev.memory*len(regions)),
+                    ('irqchips', Rev.irqchip),
+                    ('pci_devices', Rev.pci_device)
+                ]
 
-        config = RootCell()
+            config = RootCell()
 
-        header = config.header
-        header.signature = Rev.sys_signature
-        header.revision = Rev.revision
-        header.flags = cellconfig.JAILHOUSE_SYS_VIRTUAL_DEBUG_CONSOLE
-        header.hypervisor_memory.phys_start = rootcell.hypervisor().addr()
-        header.hypervisor_memory.size = rootcell.hypervisor().size()
-        header.debug_console.address = kwargs['debug_console']['addr']
-        header.debug_console.size = 0x1000
-        header.debug_console.type = kwargs['debug_console']['type'].value
-        header.debug_console.flags = cellconfig.JAILHOUSE_CON_ACCESS_MMIO | cellconfig.JAILHOUSE_CON_REGDIST_4
+            header = config.header
+            header.signature = Rev.sys_signature
+            header.revision = Rev.revision
+            header.flags = cellconfig.JAILHOUSE_SYS_VIRTUAL_DEBUG_CONSOLE
+            header.hypervisor_memory.phys_start = rootcell.hypervisor().addr()
+            header.hypervisor_memory.size = rootcell.hypervisor().size()
+            header.debug_console.address = kwargs['debug_console']['addr']
+            header.debug_console.size = 0x1000
+            header.debug_console.type = kwargs['debug_console']['type'].value
+            header.debug_console.flags = cellconfig.JAILHOUSE_CON_ACCESS_MMIO | cellconfig.JAILHOUSE_CON_REGDIST_4
 
-        pltinfo = config.header.platform_info
-        pci_ecam = rsc.platform().cpu().find_region("pci_ecam")
-        if pci_ecam is not None:
-            pltinfo.pci_machine_mmconfig_base = pci_ecam.addr()
+            pltinfo = config.header.platform_info
+            pci_ecam = rsc.platform().cpu().find_region("pci_ecam")
+            if pci_ecam is not None:
+                pltinfo.pci_machine_mmconfig_base = pci_ecam.addr()
 
-        pltinfo.pci_mmconfig_base = rootcell.pci_mmconfig().base_addr
-        pltinfo.pci_mmconfig_end_bus = rootcell.pci_mmconfig().bus_count-1
-        pltinfo.pci_is_virtual = 1
-        pltinfo.pci_domain = rootcell.pci_mmconfig().domain
-        pltinfo.plt.arm.gic_version = cpu.gic_version()
-        pltinfo.plt.arm.gicd_base = cpu.gicd_base()
-        pltinfo.plt.arm.gicr_base = cpu.gicr_base()
-        pltinfo.plt.arm.gicc_base = cpu.gicc_base()
-        pltinfo.plt.arm.gich_base = cpu.gich_base()
-        pltinfo.plt.arm.gicv_base = cpu.gicv_base()
-        pltinfo.plt.arm.maintenance_irq = 25
+            pltinfo.pci_mmconfig_base = rootcell.pci_mmconfig().base_addr
+            pltinfo.pci_mmconfig_end_bus = rootcell.pci_mmconfig().bus_count-1
+            pltinfo.pci_is_virtual = 1
+            pltinfo.pci_domain = rootcell.pci_mmconfig().domain
+            pltinfo.plt.arm.gic_version = cpu.gic_version()
+            pltinfo.plt.arm.gicd_base = cpu.gicd_base()
+            pltinfo.plt.arm.gicr_base = cpu.gicr_base()
+            pltinfo.plt.arm.gicc_base = cpu.gicc_base()
+            pltinfo.plt.arm.gich_base = cpu.gich_base()
+            pltinfo.plt.arm.gicv_base = cpu.gicv_base()
+            pltinfo.plt.arm.maintenance_irq = 25
 
-        header.root_cell.name = kwargs['name'].encode()
-        header.root_cell.cpu_set_size = ctypes.sizeof(config.cpus)
-        header.root_cell.num_memory_regions = ctypes.sizeof(config.mem_regions)//ctypes.sizeof(config.mem_regions[0])
-        header.root_cell.num_irqchips = 1
-        header.root_cell.num_pci_devices = 1
-        header.root_cell.vpci_irq_base = kwargs['vpci_irq_base']
+            header.root_cell.name = kwargs['name'].encode()
+            header.root_cell.cpu_set_size = ctypes.sizeof(config.cpus)
+            header.root_cell.num_memory_regions = ctypes.sizeof(config.mem_regions)//ctypes.sizeof(config.mem_regions[0])
+            header.root_cell.num_irqchips = 1
+            header.root_cell.num_pci_devices = 1
+            header.root_cell.vpci_irq_base = kwargs['vpci_irq_base']
 
-        config.cpus[0] = kwargs['cpu']['values'][0]
-        mem_regions = config.mem_regions
-        for idx, mem in enumerate(regions):
-            mem_regions[idx].phys_start = mem.phys
-            mem_regions[idx].virt_start = mem.virt
-            mem_regions[idx].size       = mem.size
-            mem_regions[idx].flags      = mem.flag
+            config.cpus[0] = kwargs['cpu']['values'][0]
+            mem_regions = config.mem_regions
+            for idx, mem in enumerate(regions):
+                mem_regions[idx].phys_start = mem.phys
+                mem_regions[idx].virt_start = mem.virt
+                mem_regions[idx].size       = mem.size
+                mem_regions[idx].flags      = mem.flag
 
-        irqchip = config.irqchips
-        irqchip.address = cpu.gicd_base()
-        irqchip.pin_base = 32
-        irqchip.pin_bitmap[0] = 0xffffffff
-        irqchip.pin_bitmap[1] = 0xffffffff
-        irqchip.pin_bitmap[2] = 0xffffffff
-        irqchip.pin_bitmap[3] = 0xffffffff
+            irqchip = config.irqchips
+            irqchip.address = cpu.gicd_base()
+            irqchip.pin_base = 32
+            irqchip.pin_bitmap[0] = 0xffffffff
+            irqchip.pin_bitmap[1] = 0xffffffff
+            irqchip.pin_bitmap[2] = 0xffffffff
+            irqchip.pin_bitmap[3] = 0xffffffff
 
-        pci_dev = config.pci_devices
-        pci_dev.type = cellconfig.JAILHOUSE_PCI_TYPE_IVSHMEM
-        pci_dev.domain = 1
-        pci_dev.bdf = 0
-        pci_dev.bar_mask = cellconfig.JAILHOUSE_IVSHMEM_BAR_MASK_INTX
-        pci_dev.shmem_regions_start = 0
-        pci_dev.shmem_dev_id = kwargs['ivshmem']['id']
-        pci_dev.shmem_peers = peer_count
-        pci_dev.shmem_protocol = cellconfig.JAILHOUSE_SHMEM_PROTO_UNDEFINED
+            pci_dev = config.pci_devices
+            pci_dev.type = cellconfig.JAILHOUSE_PCI_TYPE_IVSHMEM
+            pci_dev.domain = 1
+            pci_dev.bdf = 0
+            pci_dev.bar_mask = cellconfig.JAILHOUSE_IVSHMEM_BAR_MASK_INTX
+            pci_dev.shmem_regions_start = 0
+            pci_dev.shmem_dev_id = kwargs['ivshmem']['id']
+            pci_dev.shmem_peers = peer_count
+            pci_dev.shmem_protocol = cellconfig.JAILHOUSE_SHMEM_PROTO_UNDEFINED
 
-        return ctypes.string_at(ctypes.addressof(config), ctypes.sizeof(config))
+            return ctypes.string_at(ctypes.addressof(config), ctypes.sizeof(config))
+        except Exception as e:
+            logger.error(f"生成根单元格配置时出错: {str(e)}")
+            return None
 
 
 class GuestCellGenerator(object):
@@ -1143,7 +1148,7 @@ def generate_linux_dtb(jhr, name, output):
 @cli.command("kwargs")
 @click.argument("jhr")
 @click.argument("name")
-def generate_linux_dtb(jhr, name):
+def print_kwargs(jhr, name):
     """
     打印客户单元格配置参数。
     
@@ -1166,14 +1171,13 @@ def generate_linux_dtb(jhr, name):
         for i in range(guestcells.cell_count()):
             print("    ", guestcells.cell_at(i).name())
         return False
-        return False
     import pprint
     pprint.pprint(GuestCellGenerator.gen_kwargs(guestcell))
 
 @cli.command("rootcell")
 @click.argument("jhr")
 @click.argument("output")
-def generate_linux_dtb(jhr, output: str):
+def generate_rootcell(jhr, output: str):
     """
     生成根单元格配置。
     
@@ -1218,7 +1222,7 @@ def generate_linux_dtb(jhr, output: str):
 @click.argument("jhr")
 @click.argument("name")
 @click.argument("output")
-def generate_linux_dtb(jhr, name, output: str):
+def generate_guestcell(jhr, name, output: str):
     """
     生成客户单元格配置。
     

@@ -785,6 +785,34 @@
                             ]
                         }
                     }
+                },
+                {
+                    "unique_id": "9bc8fa38-6142-11f0-9200-ed6bba484f0a",
+                    "name": "new_cell_1",
+                    "arch": "AArch64",
+                    "virt_console": true,
+                    "use_virt_cpuid": false,
+                    "ivshmem_virt_addr": 0,
+                    "comm_region": 0,
+                    "console": "",
+                    "reset_addr": 0,
+                    "system_memory": [],
+                    "memmaps": [],
+                    "cpus": [
+                        0
+                    ],
+                    "devices": [],
+                    "pci_devices": [],
+                    "runinfo": {
+                        "os_type": "Linux",
+                        "os_runinfo": {
+                            "kernel": "",
+                            "devicetree": "",
+                            "ramdisk": "",
+                            "bootargs": "",
+                            "ramdisk_overlay": []
+                        }
+                    }
                 }
             ]
         }
