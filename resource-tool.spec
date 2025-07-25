@@ -1,20 +1,36 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 block_cipher = None
-
 
 a = Analysis(
     ['mainui.py'],
-    pathex=[],
+    pathex=['.'],  # 确保项目根目录在搜索路径
     binaries=[],
     datas=[
+        # 直接包含vm_manage_widget.py文件（关键！）
+        ('vm_manage_widget.py', '.'),  # 第一个参数是源文件路径，第二个是打包后的路径（当前目录）
         ('platform', 'platform'),
         ('demos', 'demos'),
         ('assets/template', 'template'),
         ('tools', 'tools'),
+        ('forms/ui_vm_manager.py', 'forms'),
+        ('forms/ui_vm_state_item.py', 'forms'),
+        ('forms/ui_meminfo.py', 'forms'),
+        ('forms/ui_cpuload.py', 'forms'),
+        ('forms/ui_*.py', 'forms'),
+        ('config_convert.py','.'),
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        'vm_manage_widget',  # 双重保险：声明为隐藏导入
+        'config_convert',
+        'commonos_runinfo',
+        'linux_runinfo',
+        'acore_runinfo',
+        'rpc_server.rpc_client',
+        'generator',
+        'jh_resource',
+        'utils',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -40,7 +56,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,  # 保持控制台输出，便于查看详细日志
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

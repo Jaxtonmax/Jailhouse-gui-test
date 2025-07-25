@@ -20,7 +20,7 @@ from utils import Profile
 from commonos_runinfo import OSRunInfoWidget, CommonOSRunInfoWidget
 from linux_runinfo import LinuxRunInfoWidget
 from acore_runinfo import ACoreRunInfoWidget
-
+from config_convert import ConfigConverter 
 
 class CellStateItemWidget(QtWidgets.QWidget):
     """
@@ -409,37 +409,47 @@ class VMManageWidget(QtWidgets.QWidget):
         
         生成根单元格配置，启用Jailhouse，并启动UART服务器。
         """
-        # if self._resource is None:
-        #     return
+        if self._resource is None:
+            return
 
-        # # 生成源码
-        # root_cell_bin = RootCellGenerator.gen_config_bin(self._resource)
-        # if root_cell_bin is None:
-        #     self.logger.error("root_cell_bin is None")
-        #     return
+        # 生成源码
+        root_cell_bin = RootCellGenerator.gen_config_bin(self._resource)
+        if root_cell_bin is None:
+            self.logger.error("root_cell_bin is None")
+            return
 
-        # # 每次创建, 前先destroy
-        # result = self._client.list_cell()
-        # if result is None or not result.status:
-        #     self.logger.error("get root cell list failed")
-        #     return
-        # for cell in result.result:
-        #     if cell['id'] == 0:
-        #         self.logger.info(f"jailhouse disable")
-        #         result = self._client.jailhouse_disable()
-        #         if not result.status:
-        #             self.logger.error("disable failed")
-        #             return
-        #         break
+        # 每次创建, 前先destroy
+        result = self._client.list_cell()
+        if result is None or not result.status:
+            self.logger.error("get root cell list failed")
+            return
+        for cell in result.result:
+            if cell['id'] == 0:
+                self.logger.info(f"jailhouse disable")
+                result = self._client.jailhouse_disable()
+                if not result.status:
+                    self.logger.error("disable failed")
+                    return
+                break
 
-        # # 开始创建root cell
-        # self.logger.info(f"jailhouse enable")
-        # result = self._client.jailhouse_enable(root_cell_bin)
-        # if not result.status:
-        #     self.logger.error("jailhouse_enable failed")
-        #     self.logger.error(f"{result.message}")
-        #     return
-        # self.logger.info("jailhouse root cell enable success")
+        # 开始创建root cell
+        self.logger.info(f"jailhouse enable")
+        result = self._client.jailhouse_enable(root_cell_bin)
+        if not result.status:
+            self.logger.error("jailhouse_enable failed")
+            self.logger.error(f"{result.message}")
+            return
+        self.logger.info("jailhouse root cell enable success")
+
+        try:
+            root_config = ConfigConverter.convert_root_cell(self._resource)
+            save_path = ConfigConverter.save_config(
+                root_config, 
+                f"root_cell_{root_config['zone_id']}.json"
+        )
+            self.logger.info(f"根单元格配置文件已生成: {save_path}")
+        except Exception as e:
+            self.logger.warning(f"生成根单元格配置文件失败: {str(e)}")
 
         jhr_obj = self._resource.to_dict()
         jhr_json = None

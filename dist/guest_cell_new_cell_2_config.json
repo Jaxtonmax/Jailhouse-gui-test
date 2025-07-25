@@ -1,0 +1,79 @@
+{
+    "name": "new_cell_2",
+    "cpu": {
+        "count": 8,
+        "cpus": [
+            0
+        ],
+        "values": [
+            1
+        ],
+        "bitmap": [
+            "0x1"
+        ]
+    },
+    "system": {
+        "virt_console": true,
+        "virt_cpuid": false,
+        "arch": "AArch64",
+        "vpci_irq_base": 103,
+        "irq_bitmaps": [
+            {
+                "bitmap": 0,
+                "comment": ""
+            },
+            {
+                "bitmap": 0,
+                "comment": ""
+            },
+            {
+                "bitmap": 0,
+                "comment": ""
+            },
+            {
+                "bitmap": 128,
+                "comment": " vpci(103)"
+            }
+        ],
+        "reset_addr": 9437184,
+        "cpu_name": "d2000"
+    },
+    "gic": {
+        "gic_version": 3,
+        "gicd_base": 698351616,
+        "gicr_base": 699400192,
+        "gicc_base": 700448768,
+        "gich_base": 700514304,
+        "gicv_base": 700579840
+    },
+    "ivshmem": {
+        "phys": 137506062336,
+        "virt": 0,
+        "state_size": 4096,
+        "rw_size": 4096,
+        "out_size": 4194304,
+        "count": 4,
+        "id": 3
+    },
+    "system_mem": [
+        {
+            "phys": 0,
+            "virt": 0,
+            "size": 67108864,
+            "comment": "",
+            "type": "NORMAL"
+        }
+    ],
+    "memmaps": [],
+    "devices": [],
+    "comm_region": 0,
+    "pci_devices": {
+        "mmconfig": {
+            "addr": 805306368,
+            "irq": 103
+        },
+        "devices": [],
+        "caps": []
+    },
+    "console": null
+}

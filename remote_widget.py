@@ -12,6 +12,7 @@ from generator import RootCellGenerator, GuestCellGenerator
 from jh_resource import Resource, ResourceGuestCellList, ResourceGuestCell
 from jh_resource import ResourceMgr, ResourceSignals
 from utils import from_human_num, Profile
+from config_convert import ConfigConverter
 
 class RemoteACoreWidget(QtWidgets.QWidget):
     # 配置文件项目，用于保存ACore相关设置
@@ -202,6 +203,16 @@ class RemoteACoreWidget(QtWidgets.QWidget):
         if guest_cell_bin is None:
             self.logger.error(f"generate cell config failed")
             return
+
+        try:
+            guest_config = ConfigConverter.convert_guest_cell(rsc, cell)
+            save_path = ConfigConverter.save_config(
+                guest_config, 
+                f"guest_cell_{guest_config['zone_id']}_{cellname}.json"
+            )
+            self.logger.info(f"客户单元格配置文件已生成: {save_path}")
+        except Exception as e:
+            self.logger.warning(f"生成客户单元格配置文件失败: {str(e)}")
 
         # 创建之前先查询列表，有无此cell,若有就销毁
         cell_exist = False
