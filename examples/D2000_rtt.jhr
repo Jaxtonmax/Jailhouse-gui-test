@@ -745,7 +745,7 @@
                     "ivshmem_virt_addr": 1879048192,
                     "comm_region": 536870912,
                     "console": "",
-                    "reset_addr": 2148532224,
+                    "reset_addr": 0,
                     "system_memory": [
                         {
                             "phys": 146163105792,
@@ -772,17 +772,13 @@
                     ],
                     "pci_devices": [],
                     "runinfo": {
-                        "os_type": "CommonOS",
+                        "os_type": "Linux",
                         "os_runinfo": {
-                            "reset_addr": 2148532224,
-                            "images": [
-                                {
-                                    "enable": true,
-                                    "name": "",
-                                    "addr": 2148532224,
-                                    "filename": "D:/FTD2000演示环境资料/jialhouse 部署使用/jialhouse 部署使用/rtthread_a64.bin"
-                                }
-                            ]
+                            "kernel": "/home/wzm/linux/arch/arm64/boot/Image",
+                            "devicetree": "/home/wzm/hvisor/platform/aarch64/qemu-gicv3/image/dts/zone1-linux.dtb",
+                            "ramdisk": "",
+                            "bootargs": "",
+                            "ramdisk_overlay": []
                         }
                     }
                 },

@@ -10,9 +10,10 @@ import psutil
 import time
 from jailhouse import Jailhouse, TempFile
 import subprocess
-
+# 获取当前脚本所在目录的绝对路径
 mypath = os.path.split(os.path.realpath(__file__))[0]
 
+# 定义编译工具路径和 Jailhouse 相关目录
 cc      = 'gcc'
 objcopy = 'objcopy'
 jailhouse_src = os.path.join(mypath, "jailhouse")
@@ -33,27 +34,32 @@ class HostApi(RPCApi):
         self._uart_server: Optional[subprocess.Popen] = None
 
     def hello(self, msg: str):
+        # 接收客户端消息并返回成功结果（包含原消息），用于测试通信连通性
         return RPCApi.Result(True, result=msg).to_dict()
 
     def compile_cell(self, src_txt: str) -> dict:
         # 保存到临时目录
         tf = TempFile()
 
+        # 校验输入是否为字符串类型
         if not isinstance(src_txt, str):
             return RPCApi.Result.error("source type error").to_dict()
 
-        src = tf.save("compile", ".c")
-        obj = tf.save("compile", ".o")
-        cell = tf.save("compile", ".cell")
+        # 创建临时文件路径（.c 源码、.o 目标文件、.cell 二进制输出）
+        src = tf.save("compile", ".c")# 临时 C 源码文件
+        obj = tf.save("compile", ".o") # 临时目标文件
+        cell = tf.save("compile", ".cell")# 最终 cell 二进制文件
 
+        # 将输入的源码文本写入临时 C 文件
         logging.info(f"save source to {src}")
         with open(src, "wt", encoding='utf8') as f:
             f.write(src_txt)
 
+        # 构建编译命令（包含头文件目录和编译选项）
         logging.info("compile")
         cflags_list = [
             cflags,
-            ' '.join(map(lambda x: f"-I{x}", inc_dirs))
+            ' '.join(map(lambda x: f"-I{x}", inc_dirs))# 拼接头文件目录参数
         ]
         cmd = f"{cc} -c {' '.join(cflags_list)} {src} -o {obj}"
         print(cmd)

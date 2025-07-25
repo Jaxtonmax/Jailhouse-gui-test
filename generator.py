@@ -27,7 +27,7 @@ import click
 import fdt
 import cellconfig
 from cellconfig import Revision14
-
+import json
 
 logger = logging.getLogger("generator")
 
@@ -368,6 +368,7 @@ class RootCellGenerator(object):
         }
         return kwargs
 
+
     @classmethod
     def gen_config_source(cls, rsc: Resource) -> Optional[str]:
         kwargs = cls.gen_kwargs(rsc)
@@ -384,10 +385,19 @@ class RootCellGenerator(object):
     def gen_config_bin(cls, rsc: Resource) -> bytes:
         logger.debug("开始生成根单元格二进制配置")
         try:
+
+            kwargs = cls.gen_kwargs(rsc)
+
+            config_filename = f"root_cell_{kwargs['name']}_config.json"
+            with open(config_filename, 'w', encoding='utf-8') as f:
+                json.dump(kwargs, f, ensure_ascii=False, indent=4)
+            logger.info(f"根单元格配置数据已保存到: {config_filename}")
+
             cpu = rsc.platform().cpu()
             rootcell = rsc.jailhouse().rootcell()
-            kwargs = cls.gen_kwargs(rsc)
             Rev = Revision14
+
+
 
             # len(devices)+len(board_mems)+len(regions)+ivshmem['count']+2}
             regions: List[JailhouseMemory] = list()
@@ -814,6 +824,14 @@ class GuestCellGenerator(object):
 
     @classmethod
     def gen_config_bin(cls, guestcell: ResourceGuestCell) -> bytes:
+
+        kwargs = cls.gen_kwargs(guestcell)  # 假设已有gen_kwargs方法
+        
+        # 👇 新增：保存配置数据结构到当前目录
+        config_filename = f"guest_cell_{guestcell.name()}_config.json"
+        with open(config_filename, 'w', encoding='utf-8') as f:
+            json.dump(kwargs, f, ensure_ascii=False, indent=4)
+        cls.logger.info(f"客户单元格配置数据已保存到: {config_filename}")
         """
         生成客户单元格的二进制配置数据。
         

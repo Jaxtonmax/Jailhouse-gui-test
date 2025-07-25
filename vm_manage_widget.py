@@ -350,7 +350,7 @@ class VMManageWidget(QtWidgets.QWidget):
         self._ui.btn_cell_run.clicked.connect(self._on_cell_run)
         self._ui.btn_cell_stop.clicked.connect(self._on_cell_stop)
         self._ui.btn_hyp_start.clicked.connect(self._on_hyp_start)
-        self._ui.btn_hyp_stop.clicked.connect(self._on_hyp_stop)
+        # self._ui.btn_hyp_stop.clicked.connect(self._on_hyp_stop)
         self._ui.btn_cell_flush.clicked.connect(self._on_cell_flush)
 
         self._timer.timeout.connect(self._on_timeout)
@@ -409,37 +409,37 @@ class VMManageWidget(QtWidgets.QWidget):
         
         生成根单元格配置，启用Jailhouse，并启动UART服务器。
         """
-        if self._resource is None:
-            return
+        # if self._resource is None:
+        #     return
 
-        # 生成源码
-        root_cell_bin = RootCellGenerator.gen_config_bin(self._resource)
-        if root_cell_bin is None:
-            self.logger.error("root_cell_bin is None")
-            return
+        # # 生成源码
+        # root_cell_bin = RootCellGenerator.gen_config_bin(self._resource)
+        # if root_cell_bin is None:
+        #     self.logger.error("root_cell_bin is None")
+        #     return
 
-        # 每次创建, 前先destroy
-        result = self._client.list_cell()
-        if result is None or not result.status:
-            self.logger.error("get root cell list failed")
-            return
-        for cell in result.result:
-            if cell['id'] == 0:
-                self.logger.info(f"jailhouse disable")
-                result = self._client.jailhouse_disable()
-                if not result.status:
-                    self.logger.error("disable failed")
-                    return
-                break
+        # # 每次创建, 前先destroy
+        # result = self._client.list_cell()
+        # if result is None or not result.status:
+        #     self.logger.error("get root cell list failed")
+        #     return
+        # for cell in result.result:
+        #     if cell['id'] == 0:
+        #         self.logger.info(f"jailhouse disable")
+        #         result = self._client.jailhouse_disable()
+        #         if not result.status:
+        #             self.logger.error("disable failed")
+        #             return
+        #         break
 
-        # 开始创建root cell
-        self.logger.info(f"jailhouse enable")
-        result = self._client.jailhouse_enable(root_cell_bin)
-        if not result.status:
-            self.logger.error("jailhouse_enable failed")
-            self.logger.error(f"{result.message}")
-            return
-        self.logger.info("jailhouse root cell enable success")
+        # # 开始创建root cell
+        # self.logger.info(f"jailhouse enable")
+        # result = self._client.jailhouse_enable(root_cell_bin)
+        # if not result.status:
+        #     self.logger.error("jailhouse_enable failed")
+        #     self.logger.error(f"{result.message}")
+        #     return
+        # self.logger.info("jailhouse root cell enable success")
 
         jhr_obj = self._resource.to_dict()
         jhr_json = None
@@ -464,28 +464,28 @@ class VMManageWidget(QtWidgets.QWidget):
             return
         self._update_vm_list(self._resource)
 
-    def _on_hyp_stop(self):
-        """
-        处理停止虚拟机监控器事件。
+    # def _on_hyp_stop(self):
+    #     """
+    #     处理停止虚拟机监控器事件。
         
-        禁用Jailhouse并停止UART服务器。
-        """
-        if self._resource is None:
-            return
+    #     禁用Jailhouse并停止UART服务器。
+    #     """
+    #     if self._resource is None:
+    #         return
 
-        result = self._client.list_cell()
-        if not result.status or result is None:
-            self.logger.error("get root cell list failed")
-            return
-        result = self._client.jailhouse_disable()
-        if not result.status:
-            self.logger.error("get root cell list failed")
-            return
-        self.logger.info("root cell disable success")
+    #     result = self._client.list_cell()
+    #     if not result.status or result is None:
+    #         self.logger.error("get root cell list failed")
+    #         return
+    #     result = self._client.jailhouse_disable()
+    #     if not result.status:
+    #         self.logger.error("get root cell list failed")
+    #         return
+    #     self.logger.info("root cell disable success")
 
-        result = self._client.stop_uart_server()
-        if not result:
-            self.logger.warning("stop uart server failed.")
+    #     result = self._client.stop_uart_server()
+    #     if not result:
+    #         self.logger.warning("stop uart server failed.")
 
     def _on_timeout(self):
         """
@@ -732,7 +732,7 @@ class VMManageWidget(QtWidgets.QWidget):
         连接到或断开与远程服务器的连接。
         """
         if not self._client.is_connected():
-            if not self._client.connect(self._ui.lineedit_addr.text().strip(), timeout=10):
+            if not self._client.connect(self._ui.lineedit_addr.text().strip(), timeout=60):
                 self.logger.error("连接失败")
         else:
             self._client.close()

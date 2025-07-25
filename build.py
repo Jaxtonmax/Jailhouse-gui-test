@@ -97,13 +97,13 @@ def build():
 def deploy():
     version = get_version()
 
-    exe = f'resource-tool-{version}.exe'
+    exe = f'resource-tool-{version}'
     cmd = 'pyinstaller resource-tool.spec'
     if os.system(cmd) != 0:
         print("pyinstaller failed.")
         return None
 
-    name_from = os.path.join("dist", "resource-tool-nonversion.exe")
+    name_from = os.path.join("dist", "resource-tool-nonversion")
     name_to   = os.path.join("dist", exe)
     if os.path.exists(name_to):
         os.remove(name_to)
