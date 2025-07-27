@@ -792,7 +792,15 @@
                     "comm_region": 0,
                     "console": "",
                     "reset_addr": 0,
-                    "system_memory": [],
+                    "system_memory": [
+                        {
+                            "phys": 0,
+                            "virt": 0,
+                            "size": "64MB",
+                            "comment": "",
+                            "type": "NORMAL"
+                        }
+                    ],
                     "memmaps": [],
                     "cpus": [
                         0

@@ -169,3 +169,14 @@ class RPCApi(metaclass=abc.ABCMeta):
         停止串口服务
         """
         return None
+
+    @abc.abstractmethod
+    def update_cpu_config(self, json_str: str) -> dict:
+        """
+        更新CPU配置（接收JSON字符串）
+        Args:
+            json_str: 包含CPU配置的JSON字符串（例如{"cpus": [0,1,2], "zone_id": 1}）
+        Returns:
+            处理结果（成功/失败信息）
+        """
+        return None

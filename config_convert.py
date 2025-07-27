@@ -112,3 +112,32 @@ class ConfigConverter:
         with open(save_path, 'w') as f:
             json.dump(config, f, indent=4)
         return save_path
+
+    # 仅用于测试：生成并保存配置文件
+    if __name__ == "__main__":
+        # 注意：这里需要根据实际项目的资源对象创建逻辑修改
+        # 以下为示例代码，需替换为真实的资源对象获取方式
+        try:
+            # 假设通过ResourceJailhouse获取根单元格和客户单元格资源
+            # 实际项目中可能需要从配置文件或其他模块加载资源
+            from jh_resource import ResourceJailhouse  # 确保导入正确
+
+            # 1. 创建/加载资源对象（根据项目实际逻辑修改）
+            # 例如：从现有配置加载资源
+            rsc = ResourceJailhouse()  # 实际项目中可能需要传入参数
+            
+            # 2. 生成根单元格配置并保存
+            root_config = ConfigConverter.convert_root_cell(rsc)
+            root_save_path = ConfigConverter.save_config(root_config, "root_cell_config.json")
+            print(f"根单元格配置已保存到：{root_save_path}")
+            
+            # 3. 生成客户单元格配置并保存（如果有客户单元格）
+            # 假设rsc中包含客户单元格列表
+            guest_cells = rsc.jailhouse().guestcells()  # 实际项目中获取客户单元格的方法可能不同
+            for guest_cell in guest_cells:
+                guest_config = ConfigConverter.convert_guest_cell(rsc, guest_cell)
+                guest_save_path = ConfigConverter.save_config(guest_config, f"guest_cell_{guest_cell.id()}_config.json")
+                print(f"客户单元格{guest_cell.id()}配置已保存到：{guest_save_path}")
+                
+        except Exception as e:
+            print(f"生成配置文件失败：{str(e)}")

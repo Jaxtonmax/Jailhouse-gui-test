@@ -30,6 +30,11 @@ a = Analysis(
         'generator',
         'jh_resource',
         'utils',
+        'rpc_server',
+        'rpc_server.rpc_client',
+        'rpc_server.api',
+        'cpu_edit_widget',  # 显式声明 CPUEditWidget 模块
+        'forms.ui_cpu_edit_widget',  # 显式声明 UI 模块
     ],
     hookspath=[],
     hooksconfig={},

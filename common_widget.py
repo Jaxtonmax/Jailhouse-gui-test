@@ -26,12 +26,20 @@ def clean_layout(layout):
     Args:
         layout: 要清理的布局对象
     """
+
+    if layout is None:
+        return  # 布局不存在时直接返回，避免错误
+    
+    # 遍历布局中的所有元素并移除
     while layout.count() > 0:
-        child = layout.takeAt(0)
-        widget = child.widget()
+        item = layout.takeAt(0)  # 获取布局中的第一个元素
+        widget = item.widget()
         if widget:
-            widget.setParent(None)
-            widget.deleteLater()
+            widget.deleteLater()  # 删除控件
+        else:
+            # 如果是子布局，递归清理
+            clean_layout(item.layout())
+
 
 def set_lineedit_status(lineedit: QtWidgets.QLineEdit, ok: bool):
     """

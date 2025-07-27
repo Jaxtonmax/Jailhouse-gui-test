@@ -37,6 +37,7 @@ imports:
  &#8226;   <a href="#commonos_runinfo">commonos_runinfo</a>
  &#8226;   <a href="#config_convert">config_convert</a>
  &#8226;   <a href="#copyreg">copyreg</a>
+ &#8226;   <a href="#cpu_edit_widget">cpu_edit_widget</a>
  &#8226;   <a href="#cpu_widget">cpu_widget</a>
  &#8226;   <a href="#create_widget">create_widget</a>
  &#8226;   <a href="#encodings">encodings</a>
@@ -164,6 +165,7 @@ imports:
  &#8226;   <a href="#enum">enum</a>
  &#8226;   <a href="#except_widget">except_widget</a>
  &#8226;   <a href="#export_widget">export_widget</a>
+ &#8226;   <a href="#forms.ui_cpu_edit_widget">forms.ui_cpu_edit_widget</a>
  &#8226;   <a href="#forms.ui_home_page">forms.ui_home_page</a>
  &#8226;   <a href="#forms.ui_main_page">forms.ui_main_page</a>
  &#8226;   <a href="#forms.ui_main_window">forms.ui_main_window</a>
@@ -201,6 +203,8 @@ imports:
  &#8226;   <a href="#reprlib">reprlib</a>
  &#8226;   <a href="#resource_tree_widget">resource_tree_widget</a>
  &#8226;   <a href="#rootcell_widget">rootcell_widget</a>
+ &#8226;   <a href="#rpc_server">rpc_server</a>
+ &#8226;   <a href="#rpc_server.api">rpc_server.api</a>
  &#8226;   <a href="#rpc_server.rpc_client">rpc_server.rpc_client</a>
  &#8226;   <a href="#sre_compile">sre_compile</a>
  &#8226;   <a href="#sre_constants">sre_constants</a>
@@ -6042,6 +6046,8 @@ imports:
  &#8226;   <a href="#common_widget">common_widget</a>
  &#8226;   <a href="#flowlayout">flowlayout</a>
  &#8226;   <a href="#forms.ui_cpu_edit_widget">forms.ui_cpu_edit_widget</a>
+ &#8226;   <a href="#json">json</a>
+ &#8226;   <a href="#logging">logging</a>
  &#8226;   <a href="#sys">sys</a>
  &#8226;   <a href="#typing">typing</a>
 
@@ -6050,6 +6056,7 @@ imports:
 imported by:
     <a href="#board_widget">board_widget</a>
  &#8226;   <a href="#guestcell_widget">guestcell_widget</a>
+ &#8226;   <a href="#mainui.py">mainui.py</a>
 
   </div>
 
@@ -10439,6 +10446,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#cpu_edit_widget">cpu_edit_widget</a>
+ &#8226;   <a href="#mainui.py">mainui.py</a>
 
   </div>
 
@@ -20089,8 +20097,10 @@ imports:
  &#8226;   <a href="#forms.ui_guestcell_widget">forms.ui_guestcell_widget</a>
  &#8226;   <a href="#forms.ui_guestcells_widget">forms.ui_guestcells_widget</a>
  &#8226;   <a href="#jh_resource">jh_resource</a>
+ &#8226;   <a href="#json_config_updater">json_config_updater</a>
  &#8226;   <a href="#logging">logging</a>
  &#8226;   <a href="#mem_edit_widget">mem_edit_widget</a>
+ &#8226;   <a href="#rpc_server.rpc_client">rpc_server.rpc_client</a>
  &#8226;   <a href="#tip_widget">tip_widget</a>
  &#8226;   <a href="#typing">typing</a>
  &#8226;   <a href="#utils">utils</a>
@@ -21398,6 +21408,7 @@ imports:
   <div class="import">
 imported by:
     <a href="#config_convert">config_convert</a>
+ &#8226;   <a href="#cpu_edit_widget">cpu_edit_widget</a>
  &#8226;   <a href="#create_widget">create_widget</a>
  &#8226;   <a href="#generator">generator</a>
  &#8226;   <a href="#gevent.tests.test__pywsgi">gevent.tests.test__pywsgi</a>
@@ -21405,6 +21416,7 @@ imported by:
  &#8226;   <a href="#json.decoder">json.decoder</a>
  &#8226;   <a href="#json.encoder">json.encoder</a>
  &#8226;   <a href="#json.scanner">json.scanner</a>
+ &#8226;   <a href="#json_config_updater">json_config_updater</a>
  &#8226;   <a href="#mainui.py">mainui.py</a>
  &#8226;   <a href="#mako.codegen">mako.codegen</a>
  &#8226;   <a href="#mako.template">mako.template</a>
@@ -21469,6 +21481,24 @@ imports:
 imported by:
     <a href="#json">json</a>
  &#8226;   <a href="#json.decoder">json.decoder</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="json_config_updater"></a>
+  <a target="code" href="/home/wzm/work/Jailhouse-gui/json_config_updater.py" type="text/plain"><tt>json_config_updater</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#json">json</a>
+ &#8226;   <a href="#logging">logging</a>
+ &#8226;   <a href="#typing">typing</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#guestcell_widget">guestcell_widget</a>
 
   </div>
 
@@ -21635,6 +21665,7 @@ imported by:
  &#8226;   <a href="#chardet.universaldetector">chardet.universaldetector</a>
  &#8226;   <a href="#commonos_runinfo">commonos_runinfo</a>
  &#8226;   <a href="#concurrent.futures._base">concurrent.futures._base</a>
+ &#8226;   <a href="#cpu_edit_widget">cpu_edit_widget</a>
  &#8226;   <a href="#create_widget">create_widget</a>
  &#8226;   <a href="#export_widget">export_widget</a>
  &#8226;   <a href="#future.backports.http.cookiejar">future.backports.http.cookiejar</a>
@@ -21648,6 +21679,7 @@ imported by:
  &#8226;   <a href="#ivshmem_widget">ivshmem_widget</a>
  &#8226;   <a href="#jailhouse_widget">jailhouse_widget</a>
  &#8226;   <a href="#jh_resource">jh_resource</a>
+ &#8226;   <a href="#json_config_updater">json_config_updater</a>
  &#8226;   <a href="#log_widget">log_widget</a>
  &#8226;   <a href="#mainui.py">mainui.py</a>
  &#8226;   <a href="#mem_edit_widget">mem_edit_widget</a>
@@ -32756,10 +32788,11 @@ imported by:
 
 <div class="node">
   <a name="rpc_server"></a>
-  <a target="code" href="-" type="text/plain"><tt>rpc_server</tt></a>
-<span class="moduletype">NamespacePackage</span>  <div class="import">
+  <a target="code" href="/home/wzm/work/Jailhouse-gui/rpc_server/__init__.py" type="text/plain"><tt>rpc_server</tt></a>
+<span class="moduletype">Package</span>  <div class="import">
 imported by:
-    <a href="#rpc_server.api">rpc_server.api</a>
+    <a href="#mainui.py">mainui.py</a>
+ &#8226;   <a href="#rpc_server.api">rpc_server.api</a>
  &#8226;   <a href="#rpc_server.pci_device">rpc_server.pci_device</a>
  &#8226;   <a href="#rpc_server.rpc_client">rpc_server.rpc_client</a>
 
@@ -32781,7 +32814,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#rpc_server.rpc_client">rpc_server.rpc_client</a>
+    <a href="#mainui.py">mainui.py</a>
+ &#8226;   <a href="#rpc_server.rpc_client">rpc_server.rpc_client</a>
 
   </div>
 
@@ -32833,6 +32867,7 @@ imported by:
     <a href="#acore_runinfo">acore_runinfo</a>
  &#8226;   <a href="#commonos_runinfo">commonos_runinfo</a>
  &#8226;   <a href="#export_widget">export_widget</a>
+ &#8226;   <a href="#guestcell_widget">guestcell_widget</a>
  &#8226;   <a href="#linux_runinfo">linux_runinfo</a>
  &#8226;   <a href="#mainui.py">mainui.py</a>
  &#8226;   <a href="#pci_device_widget">pci_device_widget</a>
@@ -35564,6 +35599,7 @@ imported by:
  &#8226;   <a href="#importlib_metadata._meta">importlib_metadata._meta</a>
  &#8226;   <a href="#ivshmem_widget">ivshmem_widget</a>
  &#8226;   <a href="#jh_resource">jh_resource</a>
+ &#8226;   <a href="#json_config_updater">json_config_updater</a>
  &#8226;   <a href="#linux_runinfo">linux_runinfo</a>
  &#8226;   <a href="#mainui.py">mainui.py</a>
  &#8226;   <a href="#markupsafe">markupsafe</a>

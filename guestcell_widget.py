@@ -11,6 +11,8 @@ from common_widget import clean_layout, set_lineedit_status, SelectButton
 from forms.ui_guestcell_widget import Ui_GuestCellWidget
 from forms.ui_guestcells_widget import Ui_GuestCellsWidget
 from tip_widget import TipMgr
+from json_config_updater import JSONConfigUpdater
+from rpc_server.rpc_client import RPCClient 
 
 
 tip_sys_mem = """\
@@ -54,6 +56,10 @@ class GuestCellsWidget(QtWidgets.QWidget):
         self._ui.btn_create_cell.clicked.connect(self._on_create_cell)
         self._ui.btn_remove_cell.clicked.connect(self._on_remove_cell)
         self._ui.listwidget_guestcells.currentRowChanged.connect(self._on_guestcell_selected)
+
+        self._json_template_path = "/home/wzm/work/Jailhouse-gui/template.json"  # 替换为你的模板路径
+        self._output_json_path = "/home/wzm/work/Jailhouse-gui/dist/config.json"    # 输出JSON路径
+        self._rpc_server_addr = "tcp://192.168.1.52:4240"            # 替换为实际RPC地址
 
         ResourceSignals.value_changed.connect(self._on_resource_value_changed)
 
@@ -157,27 +163,60 @@ class GuestCellWidget(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # 初始化UI布局框架（只执行一次）
         self._ui = Ui_GuestCellWidget()
         self._ui.setupUi(self)
+        
+        # 初始化_cpu_editor（最优先，只初始化一次）
+        self._cpu_editor = None
+        try:
+            # 尝试创建CPUEditWidget实例
+            self._cpu_editor = CPUEditWidget(self)
+            self.logger.debug("CPUEditWidget实例创建成功")
+            
+            # 确保frame_cpus有布局
+            if self._ui.frame_cpus.layout() is None:
+                self._ui.frame_cpus.setLayout(QtWidgets.QVBoxLayout())
+                self.logger.debug("为frame_cpus创建新布局")
+            
+            # 添加到布局
+            self._ui.frame_cpus.layout().addWidget(self._cpu_editor)
+            self.logger.debug("CPUEditWidget已添加到布局")
+        except Exception as e:
+            self.logger.error(f"初始化_cpu_editor失败: {str(e)}", exc_info=True)
+            QtWidgets.QMessageBox.critical(self, "初始化错误", f"CPU编辑器加载失败: {str(e)}")
+            return  # 初始化失败则终止后续流程
+        
+        # 初始化其他组件
+        self._init_other_components()
+        
+        # 绑定信号（确保在_cpu_editor初始化后）
+        self._cpu_editor.cpus_changed.connect(self._on_cpus_changed)
+        self.logger.debug("GuestCellWidget初始化完成")
+
+    def _init_other_components(self):
+        """初始化其他组件（与CPU编辑器无关的部分）"""
         self._ui.combobox_console.setView(QtWidgets.QListView())
 
+        # 系统内存编辑组件
         self._sysmem_widget = MemEditWidget(self)
         self._ui.frame_sys_mem.layout().addWidget(self._sysmem_widget)
         self._sysmem_widget.signal_changed.connect(self._on_sysmem_changed)
 
-        self._cpu_editor = CPUEditWidget(self)
-        self._ui.frame_cpus.layout().addWidget(self._cpu_editor)
-
+        # 设备布局
         self._devices_layout = FlowLayout()
         self._ui.frame_devices.setLayout(self._devices_layout)
 
+        # PCI设备布局
         self._pci_devices_layout = FlowLayout()
         self._ui.frame_pci_devices.setLayout(self._pci_devices_layout)
 
+        # 内存映射编辑组件
         self._mmaps_widget = MemEditWidget(self)
         self._ui.frame_memmaps.layout().addWidget(self._mmaps_widget)
         self._mmaps_widget.signal_changed.connect(self._on_memmaps_changed)
 
+        # 绑定其他信号
         self._ui.linedit_name.editingFinished.connect(self._on_name_edit_finished)
         self._ui.linedit_name.textChanged.connect(self._on_name_changed)
         self._ui.radiobtn_aarch32.clicked.connect(self._on_arch_change)
@@ -186,12 +225,16 @@ class GuestCellWidget(QtWidgets.QWidget):
         self._ui.btn_use_virt_cpuid.clicked.connect(self._on_virt_cpuid_changed)
         self._ui.lineedit_ivshmem_virt_addr.editingFinished.connect(self._on_ivshmem_addr_changed)
         self._ui.lineedit_comm_region.editingFinished.connect(self._on_comm_region_changed)
-        self._cpu_editor.cpus_changed.connect(self._on_cpus_changed)
         self._ui.combobox_console.currentIndexChanged.connect(self._on_console_changed)
         self._ui.lineedit_reset_addr.editingFinished.connect(self._on_reset_addr_changed)
 
+        # 初始化属性
         self._guestcell: Optional[ResourceGuestCell] = None
+        self._json_template_path = "/home/wzm/work/Jailhouse-gui/template.json"
+        self._output_json_path = "/home/wzm/work/Jailhouse-gui/dist/config.json"
+        self._rpc_server_addr = "tcp://192.168.1.52:4240"
 
+        # 提示信息
         TipMgr.add(self._ui.linedit_name, "guest cell 名称，名称使用字母和数字和横线，不能包含空格, 长度不能超过31")
         tip_arch = "选择cell运行32位模式或64位模式"
         TipMgr.add(self._ui.radiobtn_aarch32, tip_arch)
@@ -415,4 +458,48 @@ class GuestCellWidget(QtWidgets.QWidget):
     def _on_cpus_changed(self):
         if self._guestcell is None:
             return
-        self._guestcell.set_cpus(self._cpu_editor.get_cpus())
+        selected_cpus = self._cpu_editor.get_cpus()
+        self._guestcell.set_cpus(selected_cpus)
+        self._on_cpus_updated(selected_cpus)  # 触发JSON更新和RPC发送
+
+    def _on_cpus_updated(self, selected_cpus):
+        """当CPU配置变化时更新JSON文件并发送到RPC服务器"""
+        if not selected_cpus:
+            return
+            
+        try:
+            # 1. 加载JSON模板
+            json_config = JSONConfigUpdater.load_json_template(self._json_template_path)
+            
+            # 2. 更新cpus字段
+            updated_config = JSONConfigUpdater.update_cpu_field(json_config, selected_cpus)
+            
+            # 3. 保存更新后的JSON
+            if JSONConfigUpdater.save_updated_json(updated_config, self._output_json_path):
+                # 4. 发送到RPC服务器
+                self._send_json_to_rpc(self._output_json_path)
+        except Exception as e:
+            self.logger.error(f"CPU配置更新失败: {str(e)}")
+            QtWidgets.QMessageBox.warning(self, "配置错误", f"更新CPU配置失败: {str(e)}")
+
+    def _send_json_to_rpc(self, file_path):
+        """将JSON文件发送到RPC服务器"""
+        try:
+            # 读取文件内容
+            with open(file_path, 'r') as f:
+                config_content = f.read()
+            
+            # 创建RPC客户端并发送
+            client = RPCClient(self._rpc_server_addr)
+            result = client.call("save_config", config_content)
+            
+            if result.get("success", False):
+                self.logger.info("JSON配置已成功发送到RPC服务器")
+                QtWidgets.QMessageBox.information(self, "成功", "CPU配置已更新并发送到目标板")
+            else:
+                self.logger.error(f"RPC服务器返回错误: {result.get('error', '未知错误')}")
+                QtWidgets.QMessageBox.warning(self, "失败", f"发送配置失败: {result.get('error', '未知错误')}")
+                
+        except Exception as e:
+            self.logger.error(f"发送JSON到RPC服务器失败: {str(e)}")
+            QtWidgets.QMessageBox.warning(self, "错误", f"连接RPC服务器失败: {str(e)}")

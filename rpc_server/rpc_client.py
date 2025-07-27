@@ -171,6 +171,11 @@ class RPCClient(RPCApi):
     def stop_uart_server(self) -> Optional[RPCApi.Result]:
         return None
 
+    @rpc_call
+    def update_cpu_config(self, json_str: str) -> Optional[RPCApi.Result]:
+        """发送CPU配置JSON到服务端"""
+        return None
+
 
 @click.group()
 @click.option("--addr", type=str, default='')
