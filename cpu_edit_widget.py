@@ -12,14 +12,15 @@ CPU核心选择编辑界面模块。
 - CPUEditWidget: CPU核心选择编辑界面组件
 """
 
-
+import os
+from json_config_updater import JSONConfigUpdater
 from PySide2 import QtWidgets, QtCore
 from typing import Set, List, Dict
 import json
 from forms.ui_cpu_edit_widget import Ui_CPUEditWidget
 from flowlayout import FlowLayout
 from common_widget import SelectButton, clean_layout
-
+from rpc_server.rpc_client import RPCClient
 import logging
 logger = logging.getLogger("cpu_edit_widget")  # 定义 logger
 
@@ -40,7 +41,7 @@ class CPUEditWidget(QtWidgets.QWidget):
         _json_template: CPU配置JSON模板
     """
     
-    cpus_changed = QtCore.Signal()
+    cpus_changed = QtCore.Signal(set)
 
     def __init__(self, parent=None):
         """
@@ -50,7 +51,8 @@ class CPUEditWidget(QtWidgets.QWidget):
             parent: 父窗口部件，默认为None
         """
         super().__init__(parent)
-        logger.debug("CPUEditWidget 开始初始化")
+        self.logger = logger  # 新增这一行，关联模块级别的logger
+        self.logger.debug("CPUEditWidget 开始初始化")
         try:
             # 只初始化一次UI
             self._ui = Ui_CPUEditWidget()
@@ -73,23 +75,48 @@ class CPUEditWidget(QtWidgets.QWidget):
             self._cpu_count = 0
             
             # 初始化JSON配置模板
-            self._json_template: Dict = {
-                "arch": "arm64",
-                "name": "linux2",
-                "zone_id": 1,
-                "cpus": [],  # 动态更新的CPU核心列表
-                "memory_regions": [
-                    {"type": "ram", "physical_start": "0x50000000", "virtual_start": "0x50000000", "size": "0x15000000"},
-                    {"type": "ram", "physical_start": "0x0", "virtual_start": "0x0", "size": "0x200000"},
-                    {"type": "virtio", "physical_start": "0xff9d0000", "virtual_start": "0xff9d0000", "size": "0x1000"},
-                    {"type": "virtio", "physical_start": "0xff9e0000", "virtual_start": "0xff9e0000", "size": "0x1000"}
-                ]
-            }
+            # 关键修改：加载完整的template.json作为模板
+            # 请替换为你的template.json实际路径（建议使用项目相对路径）
+            template_path = os.path.join(os.path.dirname(__file__), "/home/wzm/work/Jailhouse-gui/template.json")
+            self._json_template = JSONConfigUpdater.load_json_template(template_path)
+            # 验证模板是否加载成功（可选）
+            if not self._json_template:
+                logger.error("未加载到完整模板，使用默认备份模板")
+                # 若加载失败，可在这里放一份完整的备份模板（与template.json内容一致）
+                self._json_template = {
+                    "arch": "arm64",
+                    "name": "linux2",
+                    "zone_id": 1,
+                    "cpus": [2],
+                    "memory_regions": [
+                        {"type": "ram", "physical_start": "0x50000000", "virtual_start": "0x50000000", "size": "0x15000000"},
+                        {"type": "ram", "physical_start": "0x0", "virtual_start": "0x0", "size": "0x200000"},
+                        {"type": "virtio", "physical_start": "0xff9d0000", "virtual_start": "0xff9d0000", "size": "0x1000"},
+                        {"type": "virtio", "physical_start": "0xff9e0000", "virtual_start": "0xff9e0000", "size": "0x1000"}
+                    ],
+                    "interrupts": [76, 78],
+                    "ivc_configs": [],
+                    "kernel_filepath": "./zone1/Image-nonroot",
+                    "dtb_filepath": "./zone1/zone1-linux.dtb",
+                    "kernel_load_paddr": "0x50400000",
+                    "dtb_load_paddr": "0x50000000",
+                    "entry_point": "0x50400000",
+                    "kernel_args": "",
+                    "arch_config": {
+                        "gic_version": "v3",
+                        "gicd_base": "0xfe600000",
+                        "gicd_size": "0x10000",
+                        "gicr_base": "0xfe680000",
+                        "gicr_size": "0x100000",
+                        "gits_base": "0x0",
+                        "gits_size": "0x0"
+                    }
+                }
             
             logger.debug("CPUEditWidget 初始化成功")
         except Exception as e:
             logger.error(f"CPUEditWidget 初始化失败: {str(e)}")
-            raise  # 抛出异常供上层捕获
+            raise
 
     def set_cpu_count(self, count):
         """
@@ -149,17 +176,32 @@ class CPUEditWidget(QtWidgets.QWidget):
         return cpus
 
     def _get_tcp_communicator(self):
-        """
-        从父组件获取TCP通信实例
-        
-        从BoardWidget中获取TCP通信器，符合项目现有架构
-        """
-        parent = self.parent()
-        while parent:
-            if hasattr(parent, '_tcp_communicator'):
-                return parent._tcp_communicator
-            parent = parent.parent()
-        return None
+        """从父组件获取TCP通信实例并验证连接"""
+        try:
+            # 从父组件（GuestCellWidget）获取通信实例
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, '_tcp_communicator'):
+                    tcp_comm = parent._tcp_communicator
+                    # 检查实例是否有效且已连接
+                    if tcp_comm and tcp_comm.is_connected():
+                        return tcp_comm
+                    else:
+                        self.logger.error("父组件的TCP通信实例未连接")
+                        return None
+                parent = parent.parent()
+            
+            # 如果未找到父组件的通信实例，尝试直接获取RPCClient单例（降级方案）
+            from rpc_server.rpc_client import RPCClient  # 局部导入避免循环依赖
+            tcp_comm = RPCClient.get_instance()
+            if tcp_comm.is_connected():
+                return tcp_comm
+            else:
+                self.logger.error("RPCClient单例未连接")
+                return None
+        except Exception as e:
+            self.logger.error(f"获取TCP通信实例失败: {str(e)}")
+            return None
 
     def _generate_cpu_config(self) -> str:
         """生成CPU配置JSON字符串"""
@@ -169,15 +211,21 @@ class CPUEditWidget(QtWidgets.QWidget):
 
     def _on_item_changed(self):
         """处理CPU核心选择变化事件"""
-        self.cpus_changed.emit()  # 发出信号
+        selected_cpus = self.get_cpus()  # 获取当前选中的CPU核心集合
+        self.cpus_changed.emit(selected_cpus)  # 传递参数，与信号定义匹配
         
         tcp_comm = self._get_tcp_communicator()
         if not tcp_comm:
+            logger.error("未获取到TCP通信实例")
+            return
+        
+        # 确认连接状态
+        if not tcp_comm.is_connected():
+            logger.error("TCP通信实例未连接到服务器")
             return
         
         try:
             config_json = self._generate_cpu_config()
-            # 发送配置（确保tcp_comm有update_cpu_config方法）
             if hasattr(tcp_comm, 'update_cpu_config'):
                 result = tcp_comm.update_cpu_config(config_json)
                 if result and result.status:

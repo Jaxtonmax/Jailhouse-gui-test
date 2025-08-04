@@ -1,4 +1,5 @@
 import logging
+import os 
 from typing import Optional
 from PySide2 import QtWidgets
 from cpu_edit_widget import CPUEditWidget
@@ -12,9 +13,10 @@ from forms.ui_guestcell_widget import Ui_GuestCellWidget
 from forms.ui_guestcells_widget import Ui_GuestCellsWidget
 from tip_widget import TipMgr
 from json_config_updater import JSONConfigUpdater
-from rpc_server.rpc_client import RPCClient 
-
-
+# 修正RPC客户端导入（根据项目实际情况调整）
+# from rpc_client import RPCClient  # 假设RPCClient位于rpc_client模块
+from rpc_server import rpc_client
+from rpc_server.rpc_client import RPCClient
 tip_sys_mem = """\
 配置guest cell系统的内存段的简介、物理地址、虚拟地址、大小, 可以增加删除相应的条目。
 系统内存: DDR中内存段。
@@ -59,7 +61,7 @@ class GuestCellsWidget(QtWidgets.QWidget):
 
         self._json_template_path = "/home/wzm/work/Jailhouse-gui/template.json"  # 替换为你的模板路径
         self._output_json_path = "/home/wzm/work/Jailhouse-gui/dist/config.json"    # 输出JSON路径
-        self._rpc_server_addr = "tcp://192.168.1.52:4240"            # 替换为实际RPC地址
+        self._rpc_server_addr = "tcp://192.168.1.27:4240"            # 替换为实际RPC地址
 
         ResourceSignals.value_changed.connect(self._on_resource_value_changed)
 
@@ -167,7 +169,10 @@ class GuestCellWidget(QtWidgets.QWidget):
         self._ui = Ui_GuestCellWidget()
         self._ui.setupUi(self)
         
-        # 初始化_cpu_editor（最优先，只初始化一次）
+        # 优先初始化其他组件（确保基础属性被初始化）
+        self._init_other_components()  # 移到此处
+        
+        # 初始化_cpu_editor（现在在其他组件之后）
         self._cpu_editor = None
         try:
             # 尝试创建CPUEditWidget实例
@@ -187,16 +192,83 @@ class GuestCellWidget(QtWidgets.QWidget):
             QtWidgets.QMessageBox.critical(self, "初始化错误", f"CPU编辑器加载失败: {str(e)}")
             return  # 初始化失败则终止后续流程
         
-        # 初始化其他组件
-        self._init_other_components()
-        
         # 绑定信号（确保在_cpu_editor初始化后）
         self._cpu_editor.cpus_changed.connect(self._on_cpus_changed)
         self.logger.debug("GuestCellWidget初始化完成")
 
+    def _init_tcp_communicator(self):
+        """初始化TCP通信实例（RPCClient）并连接服务器"""
+        try:
+            # 获取RPCClient单例
+            self._tcp_communicator = RPCClient.get_instance()
+            
+            # 检查是否已连接，未连接则使用已定义的服务器地址连接
+            if not self._tcp_communicator.is_connected():
+                if not self._rpc_server_addr:
+                    self.logger.error("RPC服务器地址未配置")
+                    return False
+                
+                # 连接服务器（确保RPCClient的connect方法实现正确）
+                connect_result = self._tcp_communicator.connect(self._rpc_server_addr)
+                if connect_result:
+                    self.logger.debug(f"已连接到RPC服务器: {self._rpc_server_addr}")
+                else:
+                    self.logger.error(f"连接RPC服务器失败: {self._rpc_server_addr}")
+                    self._tcp_communicator = None  # 连接失败则清空实例
+                    return False
+            return True
+        except Exception as e:
+            self.logger.error(f"初始化TCP通信实例失败: {str(e)}")
+            self._tcp_communicator = None
+            return False
+
     def _init_other_components(self):
         """初始化其他组件（与CPU编辑器无关的部分）"""
         self._ui.combobox_console.setView(QtWidgets.QListView())
+
+        # 初始化属性（优先定义RPC地址，确保连接时可用）
+        self._guestcell: Optional[ResourceGuestCell] = None
+        self._json_template_path = "/home/wzm/work/Jailhouse-gui/template.json"
+        self._output_json_path = "/home/wzm/work/Jailhouse-gui/dist/config.json"
+        self._rpc_server_addr = "tcp://192.168.1.27:4240"  # RPC服务器地址（提前定义，确保连接时已赋值）
+
+        # 初始化TCP通信实例（使用RPCClient单例，与VMManageWidget保持一致）
+        try:
+            # 修正导入路径：根据项目结构，RPCClient应直接来自rpc_client模块（参考VMManageWidget的导入方式）
+            from rpc_server.rpc_client import RPCClient  
+            self._tcp_communicator = RPCClient.get_instance()
+            self.logger.debug("成功获取RPCClient单例实例")
+        except ImportError as e:
+            self.logger.error(f"导入RPCClient失败: {str(e)}，请检查模块路径是否正确")
+            self._tcp_communicator = None
+            # 此处不抛出异常，避免阻断其他组件初始化，但需记录严重错误
+            QtWidgets.QMessageBox.critical(self, "模块错误", f"无法导入RPC客户端模块: {str(e)}")
+            return
+        except Exception as e:
+            self.logger.error(f"初始化RPCClient实例失败: {str(e)}")
+            self._tcp_communicator = None
+            return
+
+        # 尝试连接RPC服务器（使用已提前定义的地址）
+        if self._tcp_communicator and not self._tcp_communicator.is_connected():
+            try:
+                # 连接前检查地址有效性
+                if not self._rpc_server_addr.startswith(("tcp://", "ipc://")):
+                    raise ValueError(f"无效的RPC地址格式: {self._rpc_server_addr}，应为tcp://或ipc://开头")
+                
+                connect_result = self._tcp_communicator.connect(self._rpc_server_addr)
+                if connect_result:  # 假设connect()返回布尔值表示成功与否
+                    self.logger.debug(f"成功连接到RPC服务器: {self._rpc_server_addr}")
+                else:
+                    self.logger.warning(f"连接RPC服务器返回失败（无具体异常）: {self._rpc_server_addr}")
+            except Exception as e:
+                self.logger.error(f"连接RPC服务器[{self._rpc_server_addr}]失败: {str(e)}")
+                # 不阻断初始化，但提示用户
+                QtWidgets.QMessageBox.warning(self, "连接提示", f"RPC服务器连接失败: {str(e)}")
+
+        # 监听连接状态变化（与RemoteWidget保持一致的状态同步逻辑）
+        if self._tcp_communicator:
+            self._tcp_communicator.state_changed.connect(self._on_tcp_state_changed)
 
         # 系统内存编辑组件
         self._sysmem_widget = MemEditWidget(self)
@@ -228,12 +300,6 @@ class GuestCellWidget(QtWidgets.QWidget):
         self._ui.combobox_console.currentIndexChanged.connect(self._on_console_changed)
         self._ui.lineedit_reset_addr.editingFinished.connect(self._on_reset_addr_changed)
 
-        # 初始化属性
-        self._guestcell: Optional[ResourceGuestCell] = None
-        self._json_template_path = "/home/wzm/work/Jailhouse-gui/template.json"
-        self._output_json_path = "/home/wzm/work/Jailhouse-gui/dist/config.json"
-        self._rpc_server_addr = "tcp://192.168.1.52:4240"
-
         # 提示信息
         TipMgr.add(self._ui.linedit_name, "guest cell 名称，名称使用字母和数字和横线，不能包含空格, 长度不能超过31")
         tip_arch = "选择cell运行32位模式或64位模式"
@@ -252,7 +318,16 @@ class GuestCellWidget(QtWidgets.QWidget):
         tip_dev = "选择分配给guest cell的设备"
         TipMgr.add(self._ui.frame_devices, tip_dev)
         tip_pci = "选择分配给guest cell的PCI设备"
-        TipMgr.add(self._ui.frame_pci_devices,tip_pci)
+        TipMgr.add(self._ui.frame_pci_devices, tip_pci)
+
+    def _on_tcp_state_changed(self, sender):
+        """处理TCP连接状态变化的回调（与RemoteWidget逻辑一致）"""
+        if sender is not self._tcp_communicator:
+            return
+        if self._tcp_communicator.is_connected():
+            self.logger.info(f"RPC服务器连接已建立: {self._rpc_server_addr}")
+        else:
+            self.logger.warning(f"RPC服务器连接已断开: {self._rpc_server_addr}")
 
     def set_guestcell(self, guestcell:ResourceGuestCell):
         if guestcell is None:
@@ -456,50 +531,51 @@ class GuestCellWidget(QtWidgets.QWidget):
         self._guestcell.set_comm_region(value)
 
     def _on_cpus_changed(self):
+        """处理CPU选择变化的回调方法（更新并保存配置文件）"""
         if self._guestcell is None:
             return
+        
+        # 获取当前选中的CPU
         selected_cpus = self._cpu_editor.get_cpus()
+        self.logger.debug(f"CPU配置变化: {selected_cpus}")
+        
+        # 1. 更新guestcell的CPU配置
         self._guestcell.set_cpus(selected_cpus)
-        self._on_cpus_updated(selected_cpus)  # 触发JSON更新和RPC发送
-
-    def _on_cpus_updated(self, selected_cpus):
-        """当CPU配置变化时更新JSON文件并发送到RPC服务器"""
-        if not selected_cpus:
-            return
-            
+        
+        # 2. 生成并保存配置文件
         try:
-            # 1. 加载JSON模板
-            json_config = JSONConfigUpdater.load_json_template(self._json_template_path)
+            # 加载模板并更新CPU配置
+            json_template = JSONConfigUpdater.load_json_template(self._json_template_path)
+            updated_config = JSONConfigUpdater.update_cpu_field(json_template, list(selected_cpus))
             
-            # 2. 更新cpus字段
-            updated_config = JSONConfigUpdater.update_cpu_field(json_config, selected_cpus)
+            # 保存到输出路径
+            save_success = JSONConfigUpdater.save_updated_json(updated_config, self._output_json_path)
+            if not save_success:
+                self.logger.error("保存CPU配置文件失败，终止后续操作")
+                return
+            self.logger.info(f"CPU配置已保存到 {self._output_json_path}")
             
-            # 3. 保存更新后的JSON
-            if JSONConfigUpdater.save_updated_json(updated_config, self._output_json_path):
-                # 4. 发送到RPC服务器
-                self._send_json_to_rpc(self._output_json_path)
-        except Exception as e:
-            self.logger.error(f"CPU配置更新失败: {str(e)}")
-            QtWidgets.QMessageBox.warning(self, "配置错误", f"更新CPU配置失败: {str(e)}")
-
-    def _send_json_to_rpc(self, file_path):
-        """将JSON文件发送到RPC服务器"""
-        try:
-            # 读取文件内容
-            with open(file_path, 'r') as f:
+            # 3. 通过TCP通信实例发送配置（复用现有连接）
+            if not self._tcp_communicator:
+                self.logger.error("未初始化TCP通信实例，无法发送配置")
+                return
+            
+            # 检查TCP连接状态（假设RPCClient实现了is_connected方法）
+            if not self._tcp_communicator.is_connected():
+                self.logger.error("TCP通信实例未连接，无法发送配置")
+                return
+            
+            # 读取配置文件内容并发送
+            with open(self._output_json_path, 'r') as f:
                 config_content = f.read()
             
-            # 创建RPC客户端并发送
-            client = RPCClient(self._rpc_server_addr)
-            result = client.call("save_config", config_content)
-            
-            if result.get("success", False):
-                self.logger.info("JSON配置已成功发送到RPC服务器")
-                QtWidgets.QMessageBox.information(self, "成功", "CPU配置已更新并发送到目标板")
+            # 调用RPC方法（返回Result对象，通过属性访问结果）
+            result = self._tcp_communicator.update_cpu_config(config_content)
+            if result and result.status:  # 直接访问Result的status属性
+                self.logger.info("CPU配置已成功发送到目标板")
             else:
-                self.logger.error(f"RPC服务器返回错误: {result.get('error', '未知错误')}")
-                QtWidgets.QMessageBox.warning(self, "失败", f"发送配置失败: {result.get('error', '未知错误')}")
+                # 访问Result的message属性获取错误信息
+                self.logger.error(f"发送CPU配置失败: {result.message if result else '未知错误'}")
                 
         except Exception as e:
-            self.logger.error(f"发送JSON到RPC服务器失败: {str(e)}")
-            QtWidgets.QMessageBox.warning(self, "错误", f"连接RPC服务器失败: {str(e)}")
+            self.logger.error(f"处理CPU配置时出错: {str(e)}", exc_info=True)

@@ -20,9 +20,9 @@ def rpc_call(func):
         with client._lock:
             try:
                 if len(args) == 1:
-                    result = client._client.__call__( func.__name__)
+                    result = client._client.__call__(func.__name__)
                 else:
-                    result = client._client.__call__( func.__name__, *args[1:])
+                    result = client._client.__call__(func.__name__, *args[1:])
 
                 if not isinstance(result, dict):
                     print(f"rpc server return type error: {type(result)} {result}")
@@ -62,16 +62,12 @@ class RPCClient(RPCApi):
         c = zerorpc.Client(timeout=timeout)
         c.connect(addr)
         try:
-            c.hello("hello")
+            c.hello("hello")  # 验证连接
         except:
             self.logger.error("call hello failed.")
             return False
         self._client = c
-
-        # 在线程中执行会出问题
-        # self._heartbeat = threading.Thread(target=self._heartbeat_threadfun)
-        # self._heartbeat.start()
-        self.state_changed.send(self)
+        self.state_changed.send(self)  # 发送连接状态变化信号
         return True
 
     def is_connected(self) -> bool:
@@ -85,8 +81,7 @@ class RPCClient(RPCApi):
                 self._semaphore.release()
             except TypeError:
                 self._semaphore.release(1)
-
-            self.state_changed.send(self)
+            self.state_changed.send(self)  # 发送连接状态变化信号
 
     def _heartbeat_threadfun(self):
         while self._client:
@@ -119,8 +114,8 @@ class RPCClient(RPCApi):
     def jailhouse_enable(self, rootcell) -> Optional[RPCApi.Result]:
         return None
 
-    @rpc_call
-    def jailhouse_disable(self) -> dict:
+    @rpc_call  # 修正：统一使用 rpc_call 装饰器
+    def jailhouse_disable(self) -> Optional[RPCApi.Result]:  # 修正：返回类型与其他方法一致
         return None
 
     @rpc_call
@@ -171,10 +166,10 @@ class RPCClient(RPCApi):
     def stop_uart_server(self) -> Optional[RPCApi.Result]:
         return None
 
-    @rpc_call
+    @rpc_call  # 修正：使用统一的 rpc_call 装饰器，复用 zerorpc 连接
     def update_cpu_config(self, json_str: str) -> Optional[RPCApi.Result]:
-        """发送CPU配置JSON到服务端"""
-        return None
+        """发送CPU配置JSON到服务端（通过zerorpc调用，与其他方法保持一致）"""
+        return None  # 实际逻辑由 rpc_call 装饰器处理，无需手动实现
 
 
 @click.group()
@@ -189,7 +184,7 @@ def cli(ctx, addr):
         client = RPCClient()
         if not client.connect(addr):
             print("connect failed")
-            clinet = None
+            client = None  # 修正：变量名拼写错误（clinet -> client）
         ctx.obj['client'] = client
 
 @cli.command("hello")
@@ -286,7 +281,6 @@ def disable(ctx):
     result = client.jailhouse_disable()
     print(result)
     return True
-
 
 @cli.command("list-cell")
 @click.pass_context
@@ -417,10 +411,10 @@ def get_status(ctx):
     print(result.result)
     return True
 
-@cli.command("guest-status")
+@cli.command("guest-status")  # 修正：避免与上面的 get_status 命令重名
 @click.pass_context
 @click.argument("index", type=int)
-def get_status(ctx, index):
+def get_guest_status(ctx, index):  # 修正：函数名与命令名一致
     client: RPCClient = ctx.obj['client']
     if client is None:
         print("not connect.")

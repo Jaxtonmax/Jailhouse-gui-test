@@ -11,12 +11,22 @@ import time
 class TempFile(object):
     def __init__(self) -> None:
         self._temp_files = list()
+        # 定义目标目录，确保目录存在
+        self.target_dir = "/root/threevms/"
+        os.makedirs(self.target_dir, exist_ok=True)  # 不存在则创建
 
-    def __del__(self):
-        self.clean()
+    # 注释掉__del__方法，避免自动清理文件
+    # def __del__(self):
+    #     self.clean()
 
     def save(self, prefix: str, suffix: str, data: Optional[Union[str,bytes]] = None) -> Optional[str]:
-        temp = tempfile.mktemp(suffix, prefix)
+        # 生成目标路径（使用固定目录，而非系统临时目录）
+        # 生成唯一文件名（避免重复）
+        import uuid
+        unique_id = uuid.uuid4().hex[:8]  # 8位随机字符串
+        filename = f"{prefix}_{unique_id}{suffix}"
+        temp = os.path.join(self.target_dir, filename)
+
         try:
             if isinstance(data, str):
                 with open(temp, "wt") as f:
@@ -24,16 +34,19 @@ class TempFile(object):
             elif isinstance(data, bytes):
                 with open(temp, "wb") as f:
                     f.write(data)
-        except:
-            logging.error(f"write file failed {temp}.")
+        except Exception as e:
+            logging.error(f"写入文件失败 {temp}: {e}")
             return None
 
         self._temp_files.append(temp)
+        logging.info(f"文件已保存到: {temp}")  # 打印保存路径，方便确认
         return temp
 
+    # 保留clean方法，如需手动清理可调用（可选）
     def clean(self):
         for fn in self._temp_files:
-            os.unlink(fn)
+            if os.path.exists(fn):
+                os.unlink(fn)
         self._temp_files.clear()
 
 

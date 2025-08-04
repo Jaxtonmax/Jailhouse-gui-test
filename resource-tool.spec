@@ -19,22 +19,22 @@ a = Analysis(
         ('forms/ui_cpuload.py', 'forms'),
         ('forms/ui_*.py', 'forms'),
         ('config_convert.py','.'),
+        ('rpc_server', 'rpc_server'),
     ],
     hiddenimports=[
-        'vm_manage_widget',  # 双重保险：声明为隐藏导入
+        'vm_manage_widget',
         'config_convert',
         'commonos_runinfo',
         'linux_runinfo',
         'acore_runinfo',
-        'rpc_server.rpc_client',
+        'rpc_server',
+        'rpc_server.rpc_client',  # 核心：确保 rpc_client 被识别
+        'rpc_server.api',         # 解决 rpc_client 依赖的 api 模块
         'generator',
         'jh_resource',
         'utils',
-        'rpc_server',
-        'rpc_server.rpc_client',
-        'rpc_server.api',
-        'cpu_edit_widget',  # 显式声明 CPUEditWidget 模块
-        'forms.ui_cpu_edit_widget',  # 显式声明 UI 模块
+        'cpu_edit_widget',
+        'forms.ui_cpu_edit_widget',
     ],
     hookspath=[],
     hooksconfig={},
