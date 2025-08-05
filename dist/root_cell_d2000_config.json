@@ -1,0 +1,8 @@
+{
+    "system": {
+        "cpu_name": "d2000"
+    },
+    "debug_console": {
+        "addr": 671092736,
+        "size": 4096,
+        "type": 

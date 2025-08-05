@@ -784,14 +784,14 @@
                 },
                 {
                     "unique_id": "9bc8fa38-6142-11f0-9200-ed6bba484f0a",
-                    "name": "new_cell_1",
+                    "name": "rtthread",
                     "arch": "AArch64",
                     "virt_console": true,
                     "use_virt_cpuid": false,
                     "ivshmem_virt_addr": 0,
                     "comm_region": 0,
                     "console": "",
-                    "reset_addr": 0,
+                    "reset_addr": 2147483648,
                     "system_memory": [
                         {
                             "phys": 0,

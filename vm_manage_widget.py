@@ -2,7 +2,9 @@ import logging
 from typing import Optional
 import time
 import json
+import os
 import math
+
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from PySide2.QtCharts import QtCharts
@@ -309,6 +311,17 @@ class VMManageWidget(QtWidgets.QWidget):
         self._linux_runinfo = LinuxRunInfoWidget(self)
         self._acore_runinfo = ACoreRunInfoWidget(self)
 
+        # --- 新增代码 ---
+        # 1. 定义OS类型与配置文件模板的映射
+        self._os_config_map = {
+            'Linux': 'configs/linux_config.json',
+            '天脉(单分区)': 'configs/acore_config.json',
+            '通用系统': 'configs/rtthread_config.json' # 假设“通用系统”用rtthread的配置
+        }
+        
+        # 2. 用于在内存中保存和修改当前加载的配置
+        self._current_config_data = None
+
         self._os_runinfo_desc = [
             {
                 'name'   : 'CommonOS',
@@ -354,6 +367,17 @@ class VMManageWidget(QtWidgets.QWidget):
         self._ui.btn_cell_flush.clicked.connect(self._on_cell_flush)
 
         self._timer.timeout.connect(self._on_timeout)
+
+    # --- 新增槽函数 ---
+    @QtCore.Slot(set)
+    def _on_cpu_selection_changed(self, new_cpus: set):
+        """
+        当CPU选择变化时，更新内存中的配置。
+        """
+        if self._current_config_data:
+            # 将set转换为排序后的list，以保证JSON输出的稳定性
+            self._current_config_data['cpus'] = sorted(list(new_cpus))
+            self.logger.info(f"内存中的CPU配置已更新为: {self._current_config_data['cpus']}")
 
     def set_resource(self, rsc: Resource):
         """
@@ -497,6 +521,60 @@ class VMManageWidget(QtWidgets.QWidget):
     #     if not result:
     #         self.logger.warning("stop uart server failed.")
 
+    # def _on_timeout(self):
+    #     """
+    #     处理定时器超时事件。
+        
+    #     定期从服务器获取状态信息，更新单元格状态和性能指标图表。
+    #     """
+    #     if self._resource is None:
+    #         return
+    #     if not self._client.is_connected():
+    #         return
+
+    #     result = self._client.get_status()
+    #     if result:  # 只处理成功的结果
+    #         status = result.result
+    #         rootcell: dict = status.get('rootcell')
+    #         guestcells = status.get('guestcells')
+    #         timestamp = status.get('timestamp', time.time())
+
+    #         if guestcells:
+    #             for i in range(self._ui.listwidget_cells.count()):
+    #                 item = self._ui.listwidget_cells.item(i)
+    #                 item_widget: CellStateItemWidget = self._ui.listwidget_cells.itemWidget(item)
+    #                 cell = guestcells.get(item_widget.name())
+    #                 if cell is not None:
+    #                     item_widget.set_status(cell['status'])
+    #                 else:
+    #                     item_widget.set_status("未创建")
+
+    #         if rootcell:
+    #             meminfo = rootcell.get('meminfo')
+    #             cputimes = rootcell.get('cputimes')
+    #             if meminfo is None:
+    #                 return
+    #             if cputimes is None:
+    #                 return
+
+    #             self._root_cpuload.set_cpucount(rootcell.get('cpucount', "?"))
+
+    #         if self._last_status is not None:
+    #             last_cputimes = self._last_status['rootcell']['cputimes']
+    #             _user = last_cputimes['user'] - cputimes['user']
+    #             _sys = last_cputimes['system'] - cputimes['system']
+    #             _idle = last_cputimes['idle'] - cputimes['idle']
+    #             # 确保分母不为零
+    #             if _user + _sys + _idle != 0:
+    #                 cpuload = (_user + _sys) / (_user + _sys + _idle)
+    #                 self._root_cpuload.add_data(timestamp, cpuload)
+
+    #         self._root_meminfo.add_data(timestamp, meminfo['total'], meminfo['available'])
+
+    #     self._last_status = status
+
+# 文件: vm_manage_widget.py
+
     def _on_timeout(self):
         """
         处理定时器超时事件。
@@ -535,19 +613,27 @@ class VMManageWidget(QtWidgets.QWidget):
 
                 self._root_cpuload.set_cpucount(rootcell.get('cpucount', "?"))
 
-            if self._last_status is not None:
-                last_cputimes = self._last_status['rootcell']['cputimes']
-                _user = last_cputimes['user'] - cputimes['user']
-                _sys = last_cputimes['system'] - cputimes['system']
-                _idle = last_cputimes['idle'] - cputimes['idle']
-                # 确保分母不为零
-                if _user + _sys + _idle != 0:
-                    cpuload = (_user + _sys) / (_user + _sys + _idle)
-                    self._root_cpuload.add_data(timestamp, cpuload)
+            if self._last_status is not None and 'rootcell' in self._last_status and self._last_status['rootcell'] is not None:
+                last_cputimes = self._last_status['rootcell'].get('cputimes')
+                # 增加对 last_cputimes 的检查
+                if last_cputimes and cputimes:
+                    _user = last_cputimes['user'] - cputimes['user']
+                    _sys = last_cputimes['system'] - cputimes['system']
+                    _idle = last_cputimes['idle'] - cputimes['idle']
+                    # 确保分母不为零
+                    if _user + _sys + _idle != 0:
+                        cpuload = (_user + _sys) / (_user + _sys + _idle)
+                        self._root_cpuload.add_data(timestamp, cpuload)
 
-            self._root_meminfo.add_data(timestamp, meminfo['total'], meminfo['available'])
+            if meminfo: # 确保 meminfo 存在
+                self._root_meminfo.add_data(timestamp, meminfo['total'], meminfo['available'])
 
-        self._last_status = status
+            # --- 核心修改 ---
+            # 将这行代码移动到 if 块的末尾
+            self._last_status = status
+
+    #   (原位置的代码已被移动，所以这里是空的)
+    #   self._last_status = status  <--- 删除或移动此行
 
     def _on_cell_run(self):
         """
@@ -557,6 +643,31 @@ class VMManageWidget(QtWidgets.QWidget):
         """
         if self._current_cell is None:
             return
+
+        # --- 新增逻辑：上传配置文件 ---
+        if not self._current_config_data:
+            self.logger.error("没有加载任何配置，无法启动！")
+            QtWidgets.QMessageBox.critical(self, "错误", "没有有效的VM配置被加载。")
+            return
+
+        try:
+            # 1. 将内存中的配置字典转换为JSON字符串
+            final_config_json = json.dumps(self._current_config_data, indent=4)
+            
+            # 2. 通过RPC发送到目标板，并保存为'config.json'
+            #    这需要你在RPC服务器端添加一个`upload_file`之类的方法
+            self.logger.info("正在上传配置文件 config.json 到目标板...")
+            # 我们假设RPC客户端有一个叫 upload_text_file 的方法
+            result = self._client.call('upload_text_file', final_config_json, '/root/threevms/config.json')
+            if not result or not result.status:
+                 self.logger.error(f"上传配置文件失败: {result.message if result else '无响应'}")
+                 return
+            self.logger.info("配置文件 config.json 上传成功！")
+
+        except Exception as e:
+            self.logger.error(f"生成或上传配置文件时发生错误: {e}")
+            return
+            
         self._ui.btn_cell_run.setEnabled(False)
         os_runinfo = self._current_cell.runinfo().os_runinfo()
         if isinstance(os_runinfo, ACoreRunInfo):
@@ -687,6 +798,27 @@ class VMManageWidget(QtWidgets.QWidget):
             if item['display'] == display:
                 found_item = item
                 break
+
+        # --- 新增逻辑 ---
+        display_name = self._ui.combobox_os_type.itemText(index)
+        template_path = self._os_config_map.get(display_name)
+        
+        if template_path and os.path.exists(template_path):
+            try:
+                with open(template_path, 'r') as f:
+                    self._current_config_data = json.load(f)
+                self.logger.info(f"已成功加载模板: {template_path}")
+                
+                # 更新CPU编辑器的显示
+                # 同样，你需要获取到cpu_widget的引用
+                # self.cpu_widget.set_config(self._current_config_data)
+
+            except Exception as e:
+                self.logger.error(f"加载配置文件 {template_path} 失败: {e}")
+                self._current_config_data = None
+        else:
+            self.logger.warning(f"未找到操作系统 '{display_name}' 的配置文件模板路径: {template_path}")
+            self._current_config_data = None
 
         widget = found_item['widget']
         self._ui.stackedwidget_os_runinfo.setCurrentWidget(widget)

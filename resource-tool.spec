@@ -35,6 +35,7 @@ a = Analysis(
         'utils',
         'cpu_edit_widget',
         'forms.ui_cpu_edit_widget',
+        'guestcell_widget',
     ],
     hookspath=[],
     hooksconfig={},

@@ -3,8 +3,7 @@
     "name": "rtthread",
     "zone_id": 1,
     "cpus": [
-        2,
-        3
+        2
     ],
     "memory_regions": [
         {
@@ -78,6 +77,30 @@
             "physical_start": "0xFD890000",
             "virtual_start": "0xFD890000",
             "size": "0x10000"
+        },
+        {
+            "type": "io",
+            "physical_start": "0xFD5B0000",
+            "virtual_start": "0xFD5B0000",
+            "size": "0x4000"
+        },
+        {
+            "type": "io",
+            "physical_start": "0xFE1C0000",
+            "virtual_start": "0xFE1C0000",
+            "size": "0x10000"
+        },
+        {
+            "type": "io",
+            "physical_start": "0xFD58C000",
+            "virtual_start": "0xFD58C000",
+            "size": "0x4000"
+        },
+        {
+            "type": "io",
+            "physical_start": "0xFEC30000",
+            "virtual_start": "0xFEC30000",
+            "size": "0x10000"
         }
     ],
     "interrupts": [
@@ -85,11 +108,12 @@
         326,
         80,
         375,
-        363
+        363,
+        266
     ],
     "ivc_configs": [],
-    "kernel_filepath": "./zone1rt/rtthread.bin",
-    "dtb_filepath": "./zone1rt/zone1-linux.dtb",
+    "kernel_filepath": "/root/threevms/zone1rt/rtthread.bin",
+    "dtb_filepath": "/root/threevms/zone1rt/zone1-linux.dtb",
     "kernel_load_paddr": "0x40008000",
     "dtb_load_paddr": "0x40000000",
     "entry_point": "0x40008000",
