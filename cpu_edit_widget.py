@@ -78,129 +78,71 @@ class CPUEditWidget(QtWidgets.QWidget):
             # 关键修改：加载完整的template.json作为模板
             # 请替换为你的template.json实际路径（建议使用项目相对路径）
             template_path = os.path.join(os.path.dirname(__file__), "/home/wzm/work/Jailhouse-gui/template.json")
-            # self._json_template = JSONConfigUpdater.load_json_template(template_path)
-            # # 验证模板是否加载成功（可选）
-            # if not self._json_template:
-            #     logger.error("未加载到完整模板，使用默认备份模板")
-            #     # 若加载失败，可在这里放一份完整的备份模板（与template.json内容一致）
-            #     self._json_template = {
-            #         {
-            #             "arch": "arm64",
-            #             "name": "rtthread",
-            #             "zone_id": 1,
-            #             "cpus": [2,3],
-            #             "memory_regions": [
-            #                 {
-            #                     "type": "ram",
-            #                     "physical_start": "0x40008000",
-            #                     "virtual_start":  "0x40008000",
-            #                     "size": "0x10000000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xFD5F8000",
-            #                     "virtual_start":  "0xFD5F8000",
-            #                     "size": "0x1000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfeb50000",
-            #                     "virtual_start":  "0xfeb50000",
-            #                     "size": "0x10000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfeb60000",
-            #                     "virtual_start":  "0xfeb60000",
-            #                     "size": "0x10000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfeba0000",
-            #                     "virtual_start":  "0xfeba0000",
-            #                     "size": "0x10000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xFD7C0000",
-            #                     "virtual_start":  "0xFD7C0000",
-            #                     "size": "0x10000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfe660000",
-            #                     "virtual_start":  "0xfe660000",
-            #                     "size": "0x20000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfeae0000",
-            #                     "virtual_start":  "0xfeae0000",
-            #                     "size": "0x1000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfea70000",
-            #                     "virtual_start":  "0xfea70000",
-            #                     "size": "0x10000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xfd5fa000",
-            #                     "virtual_start":  "0xfd5fa000",
-            #                     "size": "0x4000"
-            #                 },
-            #                 {
-            #                     "type": "virtio",
-            #                     "physical_start": "0xff9e0000",
-            #                     "virtual_start":  "0xff9e0000",
-            #                     "size": "0x1000"
-            #                 },
-            #                 {
-            #                     "type": "io",
-            #                     "physical_start": "0xFD890000",
-            #                     "virtual_start":  "0xFD890000",
-            #                     "size": "0x10000"
-            #                 }
-            #             ],
-            #             "interrupts": [366, 326, 80, 375, 363],
-            #             "ivc_configs": [],
-            #             "kernel_filepath": "./zone1rt/rtthread.bin",
-            #             "dtb_filepath": "./zone1rt/zone1-linux.dtb",
-            #             "kernel_load_paddr": "0x40008000",
-            #             "dtb_load_paddr":   "0x40000000",
-            #             "entry_point":      "0x40008000",
-            #             "arch_config": {
-            #                 "gic_version": "v3",
-            #                 "gicd_base": "0xfe600000",
-            #                 "gicd_size": "0x10000",
-            #                 "gicr_base": "0xfe680000",
-            #                 "gicr_size": "0x10000"
-            #             }
-            #         }
+            self._json_template = JSONConfigUpdater.load_json_template(template_path)
+            # 验证模板是否加载成功（可选）
+            if not self._json_template:
+                logger.error("未加载到完整模板，使用默认备份模板")
+                # 若加载失败，可在这里放一份完整的备份模板（与template.json内容一致）
+                self._json_template = {
+                    {
+                        "arch": "arm64",
+                        "name": "linux2",
+                        "zone_id": 1,
+                        "cpus": [2],
+                        "memory_regions": [
+                            {
+                                "type": "ram",
+                                "physical_start": "0x50000000",
+                                "virtual_start":  "0x50000000",
+                                "size": "0x15000000"
+                            },
+                            {
+                                "type": "ram",
+                                "physical_start": "0x0",
+                                "virtual_start": "0x0",
+                                "size": "0x200000"
+                            },
+                            {
+                                "type": "virtio",
+                                "physical_start": "0xff9d0000",
+                                "virtual_start":  "0xff9d0000",
+                                "size": "0x1000"
+                            },
+                            {
+                                "type": "virtio",
+                                "physical_start": "0xff9e0000",
+                                "virtual_start":  "0xff9e0000",
+                                "size": "0x1000"
+                            }
+                        ],
+                        "interrupts": [76, 78],
+                        "ivc_configs": [],
+                        "kernel_filepath": "./zone1/Image-nonroot",
+                        "dtb_filepath": "./zone1/zone1-linux.dtb",
+                        "kernel_load_paddr": "0x50400000",
+                        "dtb_load_paddr":   "0x50000000",
+                        "entry_point":      "0x50400000",
+                        "kernel_args": "",
+                        "arch_config": {
+                            "gic_version": "v3",
+                            "gicd_base": "0xfe600000",
+                            "gicd_size": "0x10000",
+                            "gicr_base": "0xfe680000",
+                            "gicr_size": "0x100000",
+                            "gits_base": "0x0",
+                            "gits_size": "0x0"
+                        }
+                    }
 
 
 
-            #     }
+
+                }
             
             logger.debug("CPUEditWidget 初始化成功")
         except Exception as e:
             logger.error(f"CPUEditWidget 初始化失败: {str(e)}")
             raise
-
-    def set_config(self, config_data: dict):
-        """
-        从外部接收完整的配置字典，并更新CPU显示。
-        """
-        if not config_data or 'cpus' not in config_data:
-            self.logger.warning("传入的配置无效或缺少'cpus'字段")
-            return
-        
-        # 从配置中获取cpus并更新UI
-        cpus_to_set = set(config_data.get('cpus', []))
-        self.set_cpus(cpus_to_set)
-
-    # set_cpu_count, set_editable, get_cpus, set_cpus 方法保持不变
 
     def set_cpu_count(self, count):
         """

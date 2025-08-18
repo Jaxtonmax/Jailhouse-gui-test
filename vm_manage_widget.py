@@ -2,9 +2,7 @@ import logging
 from typing import Optional
 import time
 import json
-import os
 import math
-
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from PySide2.QtCharts import QtCharts
@@ -22,7 +20,7 @@ from utils import Profile
 from commonos_runinfo import OSRunInfoWidget, CommonOSRunInfoWidget
 from linux_runinfo import LinuxRunInfoWidget
 from acore_runinfo import ACoreRunInfoWidget
-from config_convert import ConfigConverter 
+from config_convert import ConfigConverter
 
 class CellStateItemWidget(QtWidgets.QWidget):
     """
@@ -311,17 +309,6 @@ class VMManageWidget(QtWidgets.QWidget):
         self._linux_runinfo = LinuxRunInfoWidget(self)
         self._acore_runinfo = ACoreRunInfoWidget(self)
 
-        # --- 新增代码 ---
-        # 1. 定义OS类型与配置文件模板的映射
-        self._os_config_map = {
-            'Linux': 'configs/linux_config.json',
-            '天脉(单分区)': 'configs/acore_config.json',
-            '通用系统': 'configs/rtthread_config.json' # 假设“通用系统”用rtthread的配置
-        }
-        
-        # 2. 用于在内存中保存和修改当前加载的配置
-        self._current_config_data = None
-
         self._os_runinfo_desc = [
             {
                 'name'   : 'CommonOS',
@@ -367,17 +354,6 @@ class VMManageWidget(QtWidgets.QWidget):
         self._ui.btn_cell_flush.clicked.connect(self._on_cell_flush)
 
         self._timer.timeout.connect(self._on_timeout)
-
-    # --- 新增槽函数 ---
-    @QtCore.Slot(set)
-    def _on_cpu_selection_changed(self, new_cpus: set):
-        """
-        当CPU选择变化时，更新内存中的配置。
-        """
-        if self._current_config_data:
-            # 将set转换为排序后的list，以保证JSON输出的稳定性
-            self._current_config_data['cpus'] = sorted(list(new_cpus))
-            self.logger.info(f"内存中的CPU配置已更新为: {self._current_config_data['cpus']}")
 
     def set_resource(self, rsc: Resource):
         """
@@ -521,60 +497,6 @@ class VMManageWidget(QtWidgets.QWidget):
     #     if not result:
     #         self.logger.warning("stop uart server failed.")
 
-    # def _on_timeout(self):
-    #     """
-    #     处理定时器超时事件。
-        
-    #     定期从服务器获取状态信息，更新单元格状态和性能指标图表。
-    #     """
-    #     if self._resource is None:
-    #         return
-    #     if not self._client.is_connected():
-    #         return
-
-    #     result = self._client.get_status()
-    #     if result:  # 只处理成功的结果
-    #         status = result.result
-    #         rootcell: dict = status.get('rootcell')
-    #         guestcells = status.get('guestcells')
-    #         timestamp = status.get('timestamp', time.time())
-
-    #         if guestcells:
-    #             for i in range(self._ui.listwidget_cells.count()):
-    #                 item = self._ui.listwidget_cells.item(i)
-    #                 item_widget: CellStateItemWidget = self._ui.listwidget_cells.itemWidget(item)
-    #                 cell = guestcells.get(item_widget.name())
-    #                 if cell is not None:
-    #                     item_widget.set_status(cell['status'])
-    #                 else:
-    #                     item_widget.set_status("未创建")
-
-    #         if rootcell:
-    #             meminfo = rootcell.get('meminfo')
-    #             cputimes = rootcell.get('cputimes')
-    #             if meminfo is None:
-    #                 return
-    #             if cputimes is None:
-    #                 return
-
-    #             self._root_cpuload.set_cpucount(rootcell.get('cpucount', "?"))
-
-    #         if self._last_status is not None:
-    #             last_cputimes = self._last_status['rootcell']['cputimes']
-    #             _user = last_cputimes['user'] - cputimes['user']
-    #             _sys = last_cputimes['system'] - cputimes['system']
-    #             _idle = last_cputimes['idle'] - cputimes['idle']
-    #             # 确保分母不为零
-    #             if _user + _sys + _idle != 0:
-    #                 cpuload = (_user + _sys) / (_user + _sys + _idle)
-    #                 self._root_cpuload.add_data(timestamp, cpuload)
-
-    #         self._root_meminfo.add_data(timestamp, meminfo['total'], meminfo['available'])
-
-    #     self._last_status = status
-
-# 文件: vm_manage_widget.py
-
     def _on_timeout(self):
         """
         处理定时器超时事件。
@@ -628,57 +550,91 @@ class VMManageWidget(QtWidgets.QWidget):
             if meminfo: # 确保 meminfo 存在
                 self._root_meminfo.add_data(timestamp, meminfo['total'], meminfo['available'])
 
-            # --- 核心修改 ---
-            # 将这行代码移动到 if 块的末尾
+            # 只有在成功获取新状态后才更新 last_status
             self._last_status = status
-
-    #   (原位置的代码已被移动，所以这里是空的)
-    #   self._last_status = status  <--- 删除或移动此行
 
     def _on_cell_run(self):
         """
         处理运行单元格事件。
-        
-        根据当前选中单元格的操作系统类型，调用相应的运行方法。
+        始终假定启动指令发送成功，并显示一个带有可复制连接命令的弹窗。
         """
         if self._current_cell is None:
+            self._ui.btn_cell_run.setEnabled(True)
             return
 
-        # --- 新增逻辑：上传配置文件 ---
-        if not self._current_config_data:
-            self.logger.error("没有加载任何配置，无法启动！")
-            QtWidgets.QMessageBox.critical(self, "错误", "没有有效的VM配置被加载。")
-            return
+        self._ui.btn_cell_run.setEnabled(False)
+        self.logger.info("Sending 'run cell' command to server for background launch...")
+
+        os_runinfo = self._current_cell.runinfo().os_runinfo()
+        result = None
 
         try:
-            # 1. 将内存中的配置字典转换为JSON字符串
-            final_config_json = json.dumps(self._current_config_data, indent=4)
-            
-            # 2. 通过RPC发送到目标板，并保存为'config.json'
-            #    这需要你在RPC服务器端添加一个`upload_file`之类的方法
-            self.logger.info("正在上传配置文件 config.json 到目标板...")
-            # 我们假设RPC客户端有一个叫 upload_text_file 的方法
-            result = self._client.call('upload_text_file', final_config_json, '/root/threevms/config.json')
-            if not result or not result.status:
-                 self.logger.error(f"上传配置文件失败: {result.message if result else '无响应'}")
-                 return
-            self.logger.info("配置文件 config.json 上传成功！")
-
+            if isinstance(os_runinfo, ACoreRunInfo):
+                result = self._acore_runinfo.run(self._current_cell)
+            elif isinstance(os_runinfo, LinuxRunInfo):
+                result = self._linux_runinfo.run(self._current_cell)
+            elif isinstance(os_runinfo, CommonOSRunInfo):
+                result = self._commonos_runinfo.run(self._current_cell)
+            else:
+                self.logger.error(f'Unknown OS runinfo {type(os_runinfo)}')
+                self._ui.btn_cell_run.setEnabled(True)
+                return
         except Exception as e:
-            self.logger.error(f"生成或上传配置文件时发生错误: {e}")
-            return
-            
-        self._ui.btn_cell_run.setEnabled(False)
-        os_runinfo = self._current_cell.runinfo().os_runinfo()
-        if isinstance(os_runinfo, ACoreRunInfo):
-            self._acore_runinfo.run(self._current_cell)
-        elif isinstance(os_runinfo, LinuxRunInfo):
-            self._linux_runinfo.run(self._current_cell)
-        elif isinstance(os_runinfo, CommonOSRunInfo):
-            self._commonos_runinfo.run(self._current_cell)
-        else:
-            self.logger.error(f'Unknown OS runinfo {type(os_runinfo)}')
+            self.logger.error(f"An exception occurred during the RPC call: {e}")
+            result = None
+
+        self.logger.info(f"RPC call for cell run completed. Raw result object: {result}")
+
+        # --- 新逻辑：无条件显示成功对话框，并尽力提取连接信息 ---
+        msg_box = QtWidgets.QMessageBox(self)
+        msg_box.setIcon(QtWidgets.QMessageBox.Information)
+        msg_box.setWindowTitle("后台启动指令已发送")
+        msg_box.setText(
+            "虚拟机后台启动指令已发送。\n\n"
+            "如果虚拟机配置正确，您现在应可以在目标板通过以下命令进入虚拟机："
+        )
+        msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+
+        connection_info_text = "无法从远程服务器获取确切的连接指令。\n请根据单元格名称手动连接（如 'screen -r [cell_name]_serial'）。"
+
+        if result:
+            raw_info = ""
+            if hasattr(result, 'result') and result.result:
+                raw_info = str(result.result)
+            elif hasattr(result, 'message') and result.message:
+                raw_info = str(result.message)
+
+            if raw_info:
+                self.logger.info(f"Extracted info for user: {raw_info}")
+                # 尝试从返回的完整字符串中提取 'screen ...' 命令
+                try:
+                    # 这是一个启发式搜索，寻找 'screen' 关键字
+                    if "'screen" in raw_info:
+                        connection_info_text = raw_info.split("'")[1]
+                    else:
+                        connection_info_text = raw_info
+                except IndexError:
+                    connection_info_text = raw_info
+
+        # --- 兼容性修复 ---
+        # 创建一个 QLineEdit 来显示可复制的文本
+        # 这是所有 Qt 版本都支持的可靠方法
+        command_line_edit = QtWidgets.QLineEdit(connection_info_text)
+        command_line_edit.setReadOnly(True)
+        # 设置最小宽度以确保文本可见
+        command_line_edit.setMinimumWidth(300)
+
+        # 将 QLineEdit 添加到消息框的布局中
+        # 我们需要访问布局，并添加我们的自定义小部件
+        layout = msg_box.layout()
+        # 在标准按钮之前插入我们的行编辑器
+        # addWidget(widget, row, column, rowSpan, columnSpan)
+        layout.addWidget(command_line_edit, layout.rowCount(), 0, 1, layout.columnCount())
+
+        msg_box.exec_()
+
         self._ui.btn_cell_run.setEnabled(True)
+
 
     def _on_cell_stop(self):
         """
@@ -798,27 +754,6 @@ class VMManageWidget(QtWidgets.QWidget):
             if item['display'] == display:
                 found_item = item
                 break
-
-        # --- 新增逻辑 ---
-        display_name = self._ui.combobox_os_type.itemText(index)
-        template_path = self._os_config_map.get(display_name)
-        
-        if template_path and os.path.exists(template_path):
-            try:
-                with open(template_path, 'r') as f:
-                    self._current_config_data = json.load(f)
-                self.logger.info(f"已成功加载模板: {template_path}")
-                
-                # 更新CPU编辑器的显示
-                # 同样，你需要获取到cpu_widget的引用
-                # self.cpu_widget.set_config(self._current_config_data)
-
-            except Exception as e:
-                self.logger.error(f"加载配置文件 {template_path} 失败: {e}")
-                self._current_config_data = None
-        else:
-            self.logger.warning(f"未找到操作系统 '{display_name}' 的配置文件模板路径: {template_path}")
-            self._current_config_data = None
 
         widget = found_item['widget']
         self._ui.stackedwidget_os_runinfo.setCurrentWidget(widget)

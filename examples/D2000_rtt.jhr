@@ -784,7 +784,7 @@
                 },
                 {
                     "unique_id": "9bc8fa38-6142-11f0-9200-ed6bba484f0a",
-                    "name": "rtthread",
+                    "name": "linux2",
                     "arch": "AArch64",
                     "virt_console": true,
                     "use_virt_cpuid": false,

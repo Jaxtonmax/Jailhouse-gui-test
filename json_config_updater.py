@@ -31,96 +31,51 @@ class JSONConfigUpdater:
         # 默认返回你的固定结构模板（仅cpus字段后续动态更新）
         return {
             "arch": "arm64",
-            "name": "rtthread",
+            "name": "linux2",
             "zone_id": 1,
-            "cpus": [2,3],
+            "cpus": [2],
             "memory_regions": [
                 {
                     "type": "ram",
-                    "physical_start": "0x40008000",
-                    "virtual_start":  "0x40008000",
-                    "size": "0x10000000"
+                    "physical_start": "0x50000000",
+                    "virtual_start":  "0x50000000",
+                    "size": "0x15000000"
                 },
                 {
-                    "type": "io",
-                    "physical_start": "0xFD5F8000",
-                    "virtual_start":  "0xFD5F8000",
+                    "type": "ram",
+                    "physical_start": "0x0",
+                    "virtual_start": "0x0",
+                    "size": "0x200000"
+                },
+                {
+                    "type": "virtio",
+                    "physical_start": "0xff9d0000",
+                    "virtual_start":  "0xff9d0000",
                     "size": "0x1000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfeb50000",
-                    "virtual_start":  "0xfeb50000",
-                    "size": "0x10000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfeb60000",
-                    "virtual_start":  "0xfeb60000",
-                    "size": "0x10000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfeba0000",
-                    "virtual_start":  "0xfeba0000",
-                    "size": "0x10000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xFD7C0000",
-                    "virtual_start":  "0xFD7C0000",
-                    "size": "0x10000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfe660000",
-                    "virtual_start":  "0xfe660000",
-                    "size": "0x20000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfeae0000",
-                    "virtual_start":  "0xfeae0000",
-                    "size": "0x1000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfea70000",
-                    "virtual_start":  "0xfea70000",
-                    "size": "0x10000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xfd5fa000",
-                    "virtual_start":  "0xfd5fa000",
-                    "size": "0x4000"
                 },
                 {
                     "type": "virtio",
                     "physical_start": "0xff9e0000",
                     "virtual_start":  "0xff9e0000",
                     "size": "0x1000"
-                },
-                {
-                    "type": "io",
-                    "physical_start": "0xFD890000",
-                    "virtual_start":  "0xFD890000",
-                    "size": "0x10000"
                 }
             ],
-            "interrupts": [366, 326, 80, 375, 363],
+            "interrupts": [76, 78],
             "ivc_configs": [],
-            "kernel_filepath": "./zone1rt/rtthread.bin",
-            "dtb_filepath": "./zone1rt/zone1-linux.dtb",
-            "kernel_load_paddr": "0x40008000",
-            "dtb_load_paddr":   "0x40000000",
-            "entry_point":      "0x40008000",
+            "kernel_filepath": "./zone1/Image-nonroot",
+            "dtb_filepath": "./zone1/zone1-linux.dtb",
+            "kernel_load_paddr": "0x50400000",
+            "dtb_load_paddr":   "0x50000000",
+            "entry_point":      "0x50400000",
+            "kernel_args": "",
             "arch_config": {
                 "gic_version": "v3",
                 "gicd_base": "0xfe600000",
                 "gicd_size": "0x10000",
                 "gicr_base": "0xfe680000",
-                "gicr_size": "0x10000"
+                "gicr_size": "0x100000",
+                "gits_base": "0x0",
+                "gits_size": "0x0"
             }
         }
     

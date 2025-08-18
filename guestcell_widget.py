@@ -114,101 +114,14 @@ class GuestCellsWidget(QtWidgets.QWidget):
                 self._ui.listwidget_guestcells.setCurrentRow(i)
 
     def _on_guestcell_selected(self, row):
-        # --- 在这个方法中实现模板加载 ---
         if self._guestcells is None:
             return
         guestcell = self._guestcells.cell_at(row)
-        if guestcell is None:
-            return
-            
-        # --- 现有逻辑保持 ---
-        self._ui.label_guestcell_name.setText(guestcell.name())
-        self._ui.btn_remove_cell.setEnabled(True)
-        self._ui.frame_guestcell_content.show()
-        
-        # +++ 新增：加载模板的逻辑 +++
-        cell_name = guestcell.name().lower() # 转为小写以匹配
-        template_key = None
-        
-        # 根据cell名称或其他标识符来决定加载哪个模板
-        if "linux" in cell_name:
-            template_key = "linux"
-        elif "rtthread" in cell_name:
-            template_key = "rtthread"
-        elif "acore" in cell_name:
-            template_key = "acore"
-            
-        if template_key:
-            template_path = self._config_template_map.get(template_key)
-            if template_path and os.path.exists(template_path):
-                try:
-                    with open(template_path, 'r') as f:
-                        self._active_config_data = json.load(f)
-                    self.logger.info(f"已成功加载模板: {template_path}")
-                    # 将加载的配置数据传递给子组件以更新UI
-                    self._guestcell_widget.set_config_data(self._active_config_data)
-                except Exception as e:
-                    self.logger.error(f"加载配置文件 {template_path} 失败: {e}")
-                    self._active_config_data = None
-            else:
-                self.logger.warning(f"未找到模板文件: {template_path}")
-                self._active_config_data = None
-        else:
-            self.logger.warning(f"无法根据cell名称 '{cell_name}' 确定要加载的配置模板。")
-            self._active_config_data = None
-
-    # +++ 新增槽函数，用于接收子组件的更新 +++
-    @QtCore.Slot(dict)
-    def _on_guest_config_changed(self, updated_config: dict):
-        """
-        当子组件发出配置更改信号时，更新内存中的主配置。
-        """
-        self.logger.info("接收到子组件的配置更新...")
-        self._active_config_data = updated_config
-
-    # +++ 新增部署方法，替代旧的启动逻辑 +++
-    def deploy_and_run_config(self):
-        """
-        将当前内存中的配置发送到目标板并执行启动命令。
-        """
-        if not self._active_config_data:
-            QtWidgets.QMessageBox.critical(self, "错误", "没有活动的配置可以部署！")
-            return
-            
-        self.logger.info(f"准备部署配置: {self._active_config_data.get('name')}")
-        
-        # 1. 将配置字典转换为JSON字符串
-        final_config_str = json.dumps(self._active_config_data, indent=4)
-        
-        # 2. 通过RPC将字符串发送到目标板
-        #    这需要你在RPC服务器端有一个可以接收文件内容的方法
-        rpc_client = RPCClient.get_instance()
-        if not rpc_client.is_connected():
-            QtWidgets.QMessageBox.warning(self, "警告", "RPC未连接，无法部署！")
-            return
-            
-        # 假设服务器端有一个叫 `upload_config_file` 的方法
-        # 它接收两个参数：文件内容和要保存的远程路径
-        remote_path = "/root/threevms/config.json"
-        result = rpc_client.call('upload_config_file', final_config_str, remote_path)
-        
-        if not result or not result.status:
-            msg = result.message if result else "RPC调用失败"
-            QtWidgets.QMessageBox.critical(self, "部署失败", f"上传配置文件失败: {msg}")
-            return
-            
-        self.logger.info(f"配置文件已成功上传到: {remote_path}")
-        
-        # 3. 执行启动命令
-        #    现在启动命令非常简单，因为它总是使用同一个配置文件
-        self.logger.info("正在执行启动命令...")
-        # 假设启动方法在RPC客户端中叫 `start_vm_from_config`
-        start_result = rpc_client.call('start_vm_from_config', remote_path)
-        if not start_result or not start_result.status:
-             msg = start_result.message if start_result else "RPC调用失败"
-             QtWidgets.QMessageBox.critical(self, "启动失败", f"启动虚拟机失败: {msg}")
-        else:
-             QtWidgets.QMessageBox.information(self, "成功", "虚拟机已成功启动！")
+        if guestcell is not None:
+            self._guestcell_widget.set_guestcell(guestcell)
+            self._ui.label_guestcell_name.setText(guestcell.name())
+            self._ui.btn_remove_cell.setEnabled(True)
+            self._ui.frame_guestcell_content.show()
 
     def _on_create_cell(self):
         if self._guestcells is None:
@@ -249,7 +162,6 @@ class GuestCellsWidget(QtWidgets.QWidget):
 class GuestCellWidget(QtWidgets.QWidget):
     logger = logging.getLogger("GuestCellWidget")
     not_use = "不使用"
-    config_changed = QtCore.Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -257,25 +169,9 @@ class GuestCellWidget(QtWidgets.QWidget):
         self._ui = Ui_GuestCellWidget()
         self._ui.setupUi(self)
         
-        # +++ 新增属性 +++
-        self._active_config_data = None  # 用于保存当前加载的配置字典
-        
-        # 定义OS类型和模板文件的映射关系
-        # 你需要根据你的UI来决定如何获取当前选择的OS类型
-        # 这里我们假设有一个下拉列表或者通过cell的名称来判断
-        self._config_template_map = {
-            "linux": "configs/linux_guest_config.json",
-            "rtthread": "configs/rtthread_guest_config.json",
-            "acore": "configs/acore_guest_config.json"
-        }
-
-        # 连接子组件的信号到新的处理槽
-        self._guestcell_widget.config_changed.connect(self._on_guest_config_changed)
-
         # 优先初始化其他组件（确保基础属性被初始化）
         self._init_other_components()  # 移到此处
-        if self._cpu_editor:
-            self._cpu_editor.cpus_changed.connect(self._on_cpus_changed)
+        
         # 初始化_cpu_editor（现在在其他组件之后）
         self._cpu_editor = None
         try:
@@ -478,34 +374,6 @@ class GuestCellWidget(QtWidgets.QWidget):
 
         self._guestcell = guestcell
 
-    # +++ 新增一个方法，用于从父组件接收配置字典 +++
-    def set_config_data(self, config_data: dict):
-        """
-        从一个配置字典加载数据并更新所有UI控件。
-        """
-        if not config_data:
-            self.logger.warning("接收到空的配置数据，无法更新UI")
-            return
-            
-        self._current_config = config_data  # 在内存中保存当前配置
-
-        # 更新UI控件
-        self._ui.linedit_name.setText(config_data.get("name", ""))
-        
-        arch = config_data.get("arch", "arm64")
-        self._ui.radiobtn_aarch64.setChecked(arch == "arm64")
-        self._ui.radiobtn_aarch32.setChecked(arch == "aarch32")
-        
-        # 更新CPU编辑器
-        if self._cpu_editor:
-            rsc_cpu: ResourceCPU = self._guestcell.find(ResourceCPU) # 假设还能获取到CPU总数
-            self._cpu_editor.set_cpu_count(rsc_cpu.cpu_count())
-            self._cpu_editor.set_cpus(set(config_data.get("cpus", [])))
-            
-        # ... 更新其他UI控件，如内存、设备等 ...
-        # self._sysmem_widget.set_mmaps(...)
-        self.logger.info(f"UI已根据配置 '{config_data.get('name')}' 更新。")
-
     def showEvent(self, event) -> None:
         self.set_guestcell(self._guestcell)
         return super().showEvent(event)
@@ -662,64 +530,52 @@ class GuestCellWidget(QtWidgets.QWidget):
             return
         self._guestcell.set_comm_region(value)
 
-    # def _on_cpus_changed(self):
-    #     """处理CPU选择变化的回调方法（更新并保存配置文件）"""
-    #     if self._guestcell is None:
-    #         return
+    def _on_cpus_changed(self):
+        """处理CPU选择变化的回调方法（更新并保存配置文件）"""
+        if self._guestcell is None:
+            return
         
-    #     # 获取当前选中的CPU
-    #     selected_cpus = self._cpu_editor.get_cpus()
-    #     self.logger.debug(f"CPU配置变化: {selected_cpus}")
+        # 获取当前选中的CPU
+        selected_cpus = self._cpu_editor.get_cpus()
+        self.logger.debug(f"CPU配置变化: {selected_cpus}")
         
-    #     # 1. 更新guestcell的CPU配置
-    #     self._guestcell.set_cpus(selected_cpus)
+        # 1. 更新guestcell的CPU配置
+        self._guestcell.set_cpus(selected_cpus)
         
-    #     # 2. 生成并保存配置文件
-    #     try:
-    #         # 加载模板并更新CPU配置
-    #         json_template = JSONConfigUpdater.load_json_template(self._json_template_path)
-    #         updated_config = JSONConfigUpdater.update_cpu_field(json_template, list(selected_cpus))
+        # 2. 生成并保存配置文件
+        try:
+            # 加载模板并更新CPU配置
+            json_template = JSONConfigUpdater.load_json_template(self._json_template_path)
+            updated_config = JSONConfigUpdater.update_cpu_field(json_template, list(selected_cpus))
             
-    #         # 保存到输出路径
-    #         save_success = JSONConfigUpdater.save_updated_json(updated_config, self._output_json_path)
-    #         if not save_success:
-    #             self.logger.error("保存CPU配置文件失败，终止后续操作")
-    #             return
-    #         self.logger.info(f"CPU配置已保存到 {self._output_json_path}")
+            # 保存到输出路径
+            save_success = JSONConfigUpdater.save_updated_json(updated_config, self._output_json_path)
+            if not save_success:
+                self.logger.error("保存CPU配置文件失败，终止后续操作")
+                return
+            self.logger.info(f"CPU配置已保存到 {self._output_json_path}")
             
-    #         # 3. 通过TCP通信实例发送配置（复用现有连接）
-    #         if not self._tcp_communicator:
-    #             self.logger.error("未初始化TCP通信实例，无法发送配置")
-    #             return
+            # 3. 通过TCP通信实例发送配置（复用现有连接）
+            if not self._tcp_communicator:
+                self.logger.error("未初始化TCP通信实例，无法发送配置")
+                return
             
-    #         # 检查TCP连接状态（假设RPCClient实现了is_connected方法）
-    #         if not self._tcp_communicator.is_connected():
-    #             self.logger.error("TCP通信实例未连接，无法发送配置")
-    #             return
+            # 检查TCP连接状态（假设RPCClient实现了is_connected方法）
+            if not self._tcp_communicator.is_connected():
+                self.logger.error("TCP通信实例未连接，无法发送配置")
+                return
             
-    #         # 读取配置文件内容并发送
-    #         with open(self._output_json_path, 'r') as f:
-    #             config_content = f.read()
+            # 读取配置文件内容并发送
+            with open(self._output_json_path, 'r') as f:
+                config_content = f.read()
             
-    #         # 调用RPC方法（返回Result对象，通过属性访问结果）
-    #         result = self._tcp_communicator.update_cpu_config(config_content)
-    #         if result and result.status:  # 直接访问Result的status属性
-    #             self.logger.info("CPU配置已成功发送到目标板")
-    #         else:
-    #             # 访问Result的message属性获取错误信息
-    #             self.logger.error(f"发送CPU配置失败: {result.message if result else '未知错误'}")
+            # 调用RPC方法（返回Result对象，通过属性访问结果）
+            result = self._tcp_communicator.update_cpu_config(config_content)
+            if result and result.status:  # 直接访问Result的status属性
+                self.logger.info("CPU配置已成功发送到目标板")
+            else:
+                # 访问Result的message属性获取错误信息
+                self.logger.error(f"发送CPU配置失败: {result.message if result else '未知错误'}")
                 
-    #     except Exception as e:
-    #         self.logger.error(f"处理CPU配置时出错: {str(e)}", exc_info=True)
-        def _on_cpus_changed(self, selected_cpus: set):
-        """
-        当CPU选择变化时，只更新内存中的配置，并发出信号。
-        """
-        if hasattr(self, '_current_config') and self._current_config:
-            self.logger.debug(f"CPU选择变化为: {selected_cpus}")
-            # 更新内存中的字典
-            self._current_config['cpus'] = sorted(list(selected_cpus))
-            # 发出信号，将整个更新后的配置字典传递给父组件
-            self.config_changed.emit(self._current_config)
-        else:
-            self.logger.warning("CPU发生变化，但没有当前配置可更新。")
+        except Exception as e:
+            self.logger.error(f"处理CPU配置时出错: {str(e)}", exc_info=True)

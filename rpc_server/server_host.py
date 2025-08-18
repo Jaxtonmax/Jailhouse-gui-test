@@ -1,17 +1,82 @@
 #! /usr/bin/env python3
-
-from typing import Optional, Union
-from server import RPCServer
-from api import RPCApi
+import sys
 import os
 import logging
+
+logger = logging.getLogger("server_host")
+
+# 获取当前脚本所在目录的绝对路径
+mypath = os.path.split(os.path.realpath(__file__))[0]
+# 获取项目根目录（假设rpc_server目录是项目的直接子目录）
+project_root = os.path.dirname(mypath)
+# 将项目根目录添加到Python搜索路径，确保能找到json_config_updater模块
+sys.path.append(project_root)
+
+from typing import Optional, Union, Dict, List 
+from server import RPCServer
+from api import RPCApi
+import logging
+import json
 from pci_device import PCIDevice
 import psutil
 import time
 from jailhouse import Jailhouse, TempFile
 import subprocess
-# 获取当前脚本所在目录的绝对路径
-mypath = os.path.split(os.path.realpath(__file__))[0]
+
+
+# 新增：整合JSONConfigUpdater类
+class JSONConfigUpdater:
+    """专门用于更新JSON配置中CPU字段的工具类"""
+    
+    @staticmethod
+    def load_json_template(template_path: str) -> Dict:
+        """加载固定JSON模板文件"""
+        try:
+            with open(template_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"加载JSON模板失败: {str(e)}")
+            # 加载失败时返回默认模板
+            return {
+                "arch": "arm64",
+                "name": "linux2",
+                "zone_id": 1,
+                "cpus": [2],
+                "memory_regions": [
+                    {
+                        "type": "ram",
+                        "physical_start": "0x50000000",
+                        "virtual_start":  "0x50000000",
+                        "size": "0x15000000"
+                    },
+                    # 其他内存区域配置...（保持原代码不变）
+                ],
+                # 其他字段...（保持原代码不变）
+            }
+    
+    @staticmethod
+    def update_cpu_field(json_config: Dict, cpus: List[int]) -> Dict:
+        """仅更新JSON配置中的cpus字段"""
+        if not isinstance(cpus, list) or not all(isinstance(c, int) for c in cpus):
+            logging.error("无效的CPU配置，必须是整数列表")
+            return json_config
+            
+        json_config["cpus"] = cpus
+        logging.info(f"已更新CPU配置为: {cpus}")
+        return json_config
+    
+    @staticmethod
+    def save_updated_json(json_config: Dict, output_path: str) -> bool:
+        """保存更新后的JSON配置文件"""
+        try:
+            with open(output_path, 'w') as f:
+                json.dump(json_config, f, indent=4)
+            logging.info(f"更新后的JSON配置已保存到: {output_path}")
+            return True
+        except Exception as e:
+            logging.error(f"保存JSON配置失败: {str(e)}")
+            return False
+
 
 # 定义编译工具路径和 Jailhouse 相关目录
 cc      = 'gcc'
@@ -32,6 +97,9 @@ class HostApi(RPCApi):
     def __init__(self):
         super().__init__()
         self._uart_server: Optional[subprocess.Popen] = None
+        # 配置JSON模板路径和输出路径（可根据实际情况调整）
+        self._json_template_path = os.path.join(os.path.dirname(mypath), "template.json")
+        self._output_json_path = os.path.join(os.path.dirname(mypath), "dist/config.json")
 
     def hello(self, msg: str):
         # 接收客户端消息并返回成功结果（包含原消息），用于测试通信连通性
@@ -135,7 +203,7 @@ class HostApi(RPCApi):
         status['guestcells'] = guestcells
         return RPCApi.Result(True, result=status).to_dict()
 
-    def run_linux(self, cell: bytes, kernel: bytes, dtb: bytes, ramdisk: bytes, bootargs: str) -> dict():
+    def run_linux(self, cell: bytes, kernel: bytes, dtb: bytes, ramdisk: bytes, bootargs: str) -> dict:
         tf = TempFile()
 
         if not isinstance(cell, bytes):
@@ -183,7 +251,7 @@ class HostApi(RPCApi):
 
     def get_guest_status(self, idx) -> dict:
         status = {
-            "online": true,
+            "online": True,  # 修正Python语法（小写true改为大写True）
             "mem_total": 50,
             "mem_used": 50,
             "cpu_load": 50 
@@ -201,16 +269,16 @@ class HostApi(RPCApi):
 
         uart_tool = f'{mypath}/ivsm-p2p-tool'
         if not os.path.isfile(uart_tool):
-            print("{uart_tool} not exist.")
-            return RPCApi.Result.error("{uart_tool} not exist.").to_dict()
+            logging.error(f"{uart_tool} not exist.")
+            return RPCApi.Result.error(f"{uart_tool} not exist.").to_dict()
 
         jhr_path = '/tmp/uart_server_config.jhr'
         try:
             with open(jhr_path, "wt") as f:
                 f.write(config)
-        except:
-            msg = f"open config failed."
-            print(msg)
+        except Exception as e:
+            msg = f"open config failed: {str(e)}"
+            logging.error(msg)
             return RPCApi.Result.error(msg).to_dict()
 
         self._uart_server = subprocess.Popen((uart_tool, 'uart-server', '--jhr', jhr_path))
@@ -218,7 +286,7 @@ class HostApi(RPCApi):
         time.sleep(0.1)
         if self._uart_server.poll() is not None:
             msg = f'run uart-server failed.'
-            print(msg)
+            logging.error(msg)
             self._uart_server = None
             return RPCApi.Result.error(msg).to_dict()
 
@@ -230,6 +298,51 @@ class HostApi(RPCApi):
             self._uart_server = None
         return RPCApi.Result.success("success").to_dict()
 
+    def update_cpu_config(self, json_str: str) -> dict:
+        """接收客户端发送的CPU配置JSON并保存到目标板"""
+        try:
+            # 解析JSON内容
+            cpu_config = json.loads(json_str)
+            # 保存到目标板的指定路径（例如 /etc/cpu_config.json）
+            save_path = "/root/threevms/dist/config.json"  # 目标板实际路径
+            with open(save_path, 'w') as f:
+                json.dump(cpu_config, f, indent=4)
+            logger.info(f"CPU配置已保存到目标板: {save_path}")
+            return RPCApi.Result(True, msg="保存成功").to_dict()
+        except Exception as e:
+            logger.error(f"服务端处理CPU配置失败: {str(e)}")
+            return RPCApi.Result(False, msg=str(e)).to_dict()
+
+    # 文件: rpc_server/server_host.py (HostApi类中)
+    def upload_config_file(self, content: str, remote_path: str) -> dict:
+        logging.info(f"接收到文件上传请求，目标路径: {remote_path}")
+        try:
+            with open(remote_path, "w", encoding='utf-8') as f:
+                f.write(content)
+            return RPCApi.Result(True, msg="File uploaded successfully.").to_dict()
+        except Exception as e:
+            return RPCApi.Result(False, msg=str(e)).to_dict()
+
+    def upload_text_file(self, content: str, remote_path: str) -> dict:
+        """
+        接收文本内容并将其保存到目标板的指定路径。
+        """
+        logging.info(f"接收到文件上传请求，目标路径: {remote_path}")
+        try:
+            # 确保目录存在
+            dir_name = os.path.dirname(remote_path)
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+            
+            # 写入文件
+            with open(remote_path, "w", encoding='utf-8') as f:
+                f.write(content)
+            
+            logging.info(f"文件已成功写入: {remote_path}")
+            return RPCApi.Result(True, msg="File uploaded successfully.").to_dict()
+        except Exception as e:
+            logging.error(f"写入文件 {remote_path} 失败: {str(e)}")
+            return RPCApi.Result(False, msg=f"Failed to write file: {str(e)}").to_dict()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
