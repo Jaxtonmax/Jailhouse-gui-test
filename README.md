@@ -84,7 +84,7 @@ Jailhouse-gui需要和目标机上的rpc_server服务配合使用，并且需要
 
 #### 部署rpc_server服务(openEuler边缘/服务器版本)
 
-1、将threevms文件夹拷贝到目标机上。
+1、将threevms文件夹拷贝到目标机上（建议放在绝对路径/root/下）。
 2、安装rpc_server需要的依赖。
 
 ```
@@ -117,7 +117,7 @@ bc
 rsync 
 ```
 
-2、将rpc_server文件夹拷贝到目标机上。
+2、将threevms文件夹拷贝到目标机上（建议放在绝对路径/root/下）。
 3、安装rpc_server需要的依赖。
 
 ```
@@ -125,7 +125,7 @@ cd rpc_server
 pip3 install -r requirements_rpc.txt -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
 ```
 
-4、将rpc_server/jailhouse_bin中的软连接指向正确的jailhouse文件。
+4、将想使用的ext4文件，放入绝对路径为/root/threevms/zone1/目录下，并命名为rootfs2.ext4
 5、启动rpc_server，可让其后台运行。
 
 ```
